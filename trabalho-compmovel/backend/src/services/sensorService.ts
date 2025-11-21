@@ -1,63 +1,65 @@
 import { randomUUID } from "node:crypto";
 
-import { getDatabase } from "../database/connection";
-import type { SensorReadingPayload } from "../types";
-import { evaluateReadingForAlert } from "./alertService";
-import { broadcastSensorUpdate } from "../realtime/socket";
+import { getDatabase, saveDB } from "../database/connection.js";
+import type { SensorReadingPayload } from "../types/index.js";
+import { evaluateReadingForAlert } from "./alertService.js";
+import { broadcastSensorUpdate } from "../realtime/socket.js";
 
 export function listSensors() {
-  return getDatabase()
-    .prepare(`SELECT id, name, location, type, created_at as createdAt FROM sensors`)
-    .all();
+  const db = getDatabase();
+  return db.sensors || [];
 }
 
 export function listSensorReadings(sensorId: string) {
   const db = getDatabase();
-  const sensor = db
-    .prepare(`SELECT id FROM sensors WHERE id = ?`)
-    .get(sensorId);
+  const sensor = db.sensors?.find((s: any) => s.id === sensorId);
   if (!sensor) {
     return null;
   }
 
-  return db
-    .prepare(
-      `SELECT id, sensor_id as sensorId, type, value, unit, timestamp, metadata
-       FROM readings
-       WHERE sensor_id = ?
-       ORDER BY datetime(timestamp) DESC
-       LIMIT 100`
-    )
-    .all(sensorId);
+  const readings = (db.readings || [])
+    .filter((r: any) => r.sensor_id === sensorId)
+    .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 100);
+
+  return readings;
 }
 
 export function persistReading(reading: SensorReadingPayload) {
   const db = getDatabase();
-  db.prepare(
-    `INSERT OR IGNORE INTO sensors (id, name, location, type)
-     VALUES (@id, @name, @location, @type)`
-  ).run({
-    id: reading.sensorId,
-    name: `Sensor ${reading.sensorId}`,
-    location: reading.metadata?.location ?? "Desconhecido",
-    type: reading.type
-  });
 
-  const stmt = db.prepare(
-    `INSERT INTO readings (id, sensor_id, type, value, unit, timestamp, metadata)
-     VALUES (@id, @sensorId, @type, @value, @unit, @timestamp, @metadata)`
-  );
+  // Criar ou atualizar sensor
+  const existingSensor = db.sensors?.find((s: any) => s.id === reading.sensorId);
+  if (!existingSensor) {
+    db.sensors = db.sensors || [];
+    db.sensors.push({
+      id: reading.sensorId,
+      name: `Sensor ${reading.sensorId}`,
+      location: reading.metadata?.location ?? "Desconhecido",
+      type: reading.type,
+      created_at: new Date().toISOString()
+    });
+  }
 
-  stmt.run({
+  // Adicionar reading
+  db.readings = db.readings || [];
+  db.readings.push({
     id: randomUUID(),
-    sensorId: reading.sensorId,
+    sensor_id: reading.sensorId,
     type: reading.type,
     value: reading.value,
     unit: reading.unit,
     timestamp: reading.timestamp,
-    metadata: JSON.stringify(reading.metadata ?? {})
+    metadata: JSON.stringify(reading.metadata ?? {}),
+    created_at: new Date().toISOString()
   });
 
+  // Manter apenas últimos 1000 readings por performance
+  if (db.readings.length > 1000) {
+    db.readings = db.readings.slice(-1000);
+  }
+
+  saveDB();
   evaluateReadingForAlert(reading);
   broadcastSensorUpdate(reading.sensorId);
 }

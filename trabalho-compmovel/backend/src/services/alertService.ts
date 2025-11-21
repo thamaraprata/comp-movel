@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { getDatabase } from "../database/connection";
-import type { Alert, SensorReadingPayload } from "../types";
-import { getThresholdByType } from "./thresholdService";
-import { broadcastAlert } from "../realtime/socket";
-import { sendTelegramAlert } from "../integrations/telegram";
+import { getDatabase, saveDB } from "../database/connection.js";
+import type { Alert, SensorReadingPayload } from "../types/index.js";
+import { getThresholdByType } from "./thresholdService.js";
+import { broadcastAlert } from "../realtime/socket.js";
+import { sendTelegramAlert } from "../integrations/telegram.js";
 
 export function evaluateReadingForAlert(reading: SensorReadingPayload) {
   const threshold = getThresholdByType(reading.type);
@@ -45,45 +45,72 @@ export function evaluateReadingForAlert(reading: SensorReadingPayload) {
 
 export function persistAlert(alert: Alert) {
   const db = getDatabase();
-  const stmt = db.prepare(
-    `
-    INSERT INTO alerts (
-      id, sensor_id, sensor_type, message, severity, value, threshold, status, created_at
-    ) VALUES (
-      @id, @sensorId, @sensorType, @message, @severity, @value, @threshold, @status, @createdAt
-    )
-  `
-  );
+  db.alerts = db.alerts || [];
+  db.alerts.push({
+    id: alert.id,
+    sensor_id: alert.sensorId,
+    sensor_type: alert.sensorType,
+    message: alert.message,
+    severity: alert.severity,
+    value: alert.value,
+    threshold: alert.threshold,
+    status: alert.status,
+    created_at: alert.createdAt,
+    resolved_at: null
+  });
 
-  stmt.run(alert);
+  // Manter apenas últimos 100 alertas
+  if (db.alerts.length > 100) {
+    db.alerts = db.alerts.slice(-100);
+  }
+
+  saveDB();
 }
 
 export function listAlerts(): Alert[] {
-  return getDatabase()
-    .prepare(
-      `SELECT id, sensor_id as sensorId, sensor_type as sensorType, message, severity, value, threshold, status, created_at as createdAt, resolved_at as resolvedAt
-       FROM alerts
-       ORDER BY datetime(created_at) DESC
-       LIMIT 50`
-    )
-    .all();
+  const db = getDatabase();
+  const alerts = (db.alerts || [])
+    .map((a: any) => ({
+      id: a.id,
+      sensorId: a.sensor_id,
+      sensorType: a.sensor_type,
+      message: a.message,
+      severity: a.severity,
+      value: a.value,
+      threshold: a.threshold,
+      status: a.status,
+      createdAt: a.created_at,
+      resolvedAt: a.resolved_at
+    }))
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 50);
+
+  return alerts;
 }
 
 export function acknowledgeAlertById(id: string): Alert | null {
   const db = getDatabase();
-  const alert = db
-    .prepare(
-      `SELECT id, sensor_id as sensorId, sensor_type as sensorType, message, severity, value, threshold, status, created_at as createdAt, resolved_at as resolvedAt
-       FROM alerts WHERE id = ?`
-    )
-    .get(id) as Alert | undefined;
+  const alertData = db.alerts?.find((a: any) => a.id === id);
 
-  if (!alert) {
+  if (!alertData) {
     return null;
   }
 
-  db.prepare(`UPDATE alerts SET status = 'acknowledged', resolved_at = CURRENT_TIMESTAMP WHERE id = ?`).run(id);
+  alertData.status = "acknowledged";
+  alertData.resolved_at = new Date().toISOString();
+  saveDB();
 
-  return { ...alert, status: "acknowledged", resolvedAt: new Date().toISOString() };
+  return {
+    id: alertData.id,
+    sensorId: alertData.sensor_id,
+    sensorType: alertData.sensor_type,
+    message: alertData.message,
+    severity: alertData.severity,
+    value: alertData.value,
+    threshold: alertData.threshold,
+    status: alertData.status,
+    createdAt: alertData.created_at,
+    resolvedAt: alertData.resolved_at
+  };
 }
 

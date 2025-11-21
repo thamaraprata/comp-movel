@@ -1,8 +1,8 @@
 import dayjs from "dayjs";
 import { z } from "zod";
 
-import { getDatabase } from "../database/connection";
-import type { Threshold } from "../types";
+import { getDatabase, saveDB } from "../database/connection.js";
+import type { Threshold } from "../types/index.js";
 
 const updateThresholdSchema = z.object({
   minValue: z.number().nullable().optional(),
@@ -11,19 +11,29 @@ const updateThresholdSchema = z.object({
 });
 
 export function getThresholds(): Threshold[] {
-  return getDatabase()
-    .prepare(
-      `SELECT sensor_type as sensorType, min_value as minValue, max_value as maxValue, unit, updated_at as updatedAt FROM thresholds`
-    )
-    .all();
+  const db = getDatabase();
+  return (db.thresholds || []).map((t: any) => ({
+    sensorType: t.sensor_type,
+    minValue: t.min_value,
+    maxValue: t.max_value,
+    unit: t.unit,
+    updatedAt: t.updated_at
+  }));
 }
 
 export function getThresholdByType(sensorType: string) {
-  return getDatabase()
-    .prepare(
-      `SELECT sensor_type as sensorType, min_value as minValue, max_value as maxValue, unit, updated_at as updatedAt FROM thresholds WHERE sensor_type = ?`
-    )
-    .get(sensorType) as Threshold | undefined;
+  const db = getDatabase();
+  const threshold = db.thresholds?.find((t: any) => t.sensor_type === sensorType);
+  if (!threshold) {
+    return undefined;
+  }
+  return {
+    sensorType: threshold.sensor_type,
+    minValue: threshold.min_value,
+    maxValue: threshold.max_value,
+    unit: threshold.unit,
+    updatedAt: threshold.updated_at
+  };
 }
 
 export function updateThreshold(sensorType: string, payload: unknown): Threshold | null {
@@ -36,18 +46,31 @@ export function updateThreshold(sensorType: string, payload: unknown): Threshold
   const db = getDatabase();
   const updatedAt = dayjs().toISOString();
 
-  db.prepare(
-    `INSERT INTO thresholds (sensor_type, min_value, max_value, unit, updated_at)
-     VALUES (@sensorType, @minValue, @maxValue, @unit, @updatedAt)
-     ON CONFLICT(sensor_type)
-     DO UPDATE SET min_value = excluded.min_value,
-                   max_value = excluded.max_value,
-                   unit = excluded.unit,
-                   updated_at = excluded.updated_at`
-  ).run({ sensorType, minValue, maxValue, unit, updatedAt });
+  db.thresholds = db.thresholds || [];
+  const existingIndex = db.thresholds.findIndex((t: any) => t.sensor_type === sensorType);
+
+  if (existingIndex >= 0) {
+    db.thresholds[existingIndex] = {
+      sensor_type: sensorType,
+      min_value: minValue,
+      max_value: maxValue,
+      unit,
+      updated_at: updatedAt
+    };
+  } else {
+    db.thresholds.push({
+      sensor_type: sensorType,
+      min_value: minValue,
+      max_value: maxValue,
+      unit,
+      updated_at: updatedAt
+    });
+  }
+
+  saveDB();
 
   return {
-    sensorType: sensorType as Threshold["sensorType"],
+    sensorType,
     minValue,
     maxValue,
     unit,

@@ -1,23 +1,40 @@
 import dayjs from "dayjs";
 
-import { getDatabase } from "../database/connection";
+import { getDatabase } from "../database/connection.js";
 import type {
   DashboardSnapshot,
   HistoricalSeries,
   SensorSummary
-} from "../types";
+} from "../types/index.js";
 
 export function getDashboardSnapshot(): DashboardSnapshot {
   const summaries = buildSummaries();
-  const alerts = getDatabase()
-    .prepare(
-      `SELECT * FROM alerts ORDER BY datetime(created_at) DESC LIMIT 20`
-    )
-    .all();
 
-  const thresholds = getDatabase()
-    .prepare(`SELECT sensor_type AS sensorType, min_value AS minValue, max_value AS maxValue, unit, updated_at AS updatedAt FROM thresholds`)
-    .all();
+  const db = getDatabase();
+  const alerts = (db.alerts || [])
+    .map((a: any) => ({
+      id: a.id,
+      sensorId: a.sensor_id,
+      sensorType: a.sensor_type,
+      message: a.message,
+      severity: a.severity,
+      value: a.value,
+      threshold: a.threshold,
+      status: a.status,
+      createdAt: a.created_at,
+      resolvedAt: a.resolved_at,
+      acknowledged: a.status === "acknowledged"
+    }))
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 20);
+
+  const thresholds = (db.thresholds || []).map((t: any) => ({
+    sensorType: t.sensor_type,
+    minValue: t.min_value,
+    maxValue: t.max_value,
+    unit: t.unit,
+    updatedAt: t.updated_at
+  }));
 
   const history = buildHistorySeries();
 
@@ -38,100 +55,62 @@ export function getSensorSnapshot(sensorId: string) {
   };
 }
 
-function buildSummaries(sensorId?: string): SensorSummary[] {
+function buildSummaries(sensorIdFilter?: string): SensorSummary[] {
   const db = getDatabase();
-  const rows = db
-    .prepare(
-      `
-      SELECT s.id as sensorId,
-             s.name as label,
-             s.type as sensorType,
-             latest.value as value,
-             latest.unit as unit,
-             latest.timestamp as updatedAt
-      FROM sensors s
-      JOIN (
-        SELECT r1.*
-        FROM readings r1
-        JOIN (
-          SELECT sensor_id, MAX(timestamp) as max_timestamp
-          FROM readings
-          GROUP BY sensor_id
-        ) latest ON latest.sensor_id = r1.sensor_id AND latest.max_timestamp = r1.timestamp
-      ) latest ON latest.sensor_id = s.id
-      ${sensorId ? "WHERE s.id = ?" : ""}
-    `
-    )
-    .all(sensorId ? [sensorId] : undefined);
+  const sensors = db.sensors || [];
+  const readings = db.readings || [];
 
-  return rows.map((row: any) => {
-    const previous = db
-      .prepare(
-        `SELECT value
-         FROM readings
-         WHERE sensor_id = ?
-         ORDER BY datetime(timestamp) DESC
-         LIMIT 1 OFFSET 1`
-      )
-      .get(row.sensorId) as { value: number } | undefined;
+  return sensors
+    .filter((s: any) => !sensorIdFilter || s.id === sensorIdFilter)
+    .map((sensor: any) => {
+      const sensorReadings = readings
+        .filter((r: any) => r.sensor_id === sensor.id)
+        .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-    const change = previous ? Number((row.value - previous.value).toFixed(2)) : 0;
-    const trend =
-      change > 0.5 ? "up" : change < -0.5 ? "down" : "stable";
+      if (sensorReadings.length === 0) {
+        return null;
+      }
 
-    const thresholds = db
-      .prepare(
-        `SELECT min_value AS minValue, max_value AS maxValue
-         FROM thresholds WHERE sensor_type = ?`
-      )
-      .get(row.sensorType) as { minValue: number | null; maxValue: number | null } | undefined;
+      const latest = sensorReadings[0];
+      const previous = sensorReadings[1];
+      const change = previous ? Number((latest.value - previous.value).toFixed(2)) : 0;
+      const trend = change > 0.5 ? "up" : change < -0.5 ? "down" : "stable";
 
-    const status = calculateStatus(row.value, thresholds?.minValue, thresholds?.maxValue);
+      const threshold = db.thresholds?.find((t: any) => t.sensor_type === sensor.type);
+      const status = calculateStatus(latest.value, threshold?.min_value, threshold?.max_value);
 
-    return {
-      sensorId: row.sensorId,
-      sensorType: row.sensorType,
-      label: row.label,
-      value: row.value,
-      unit: row.unit,
-      trend,
-      change,
-      status,
-      updatedAt: row.updatedAt
-    };
-  });
+      return {
+        sensorId: sensor.id,
+        sensorType: sensor.type,
+        label: sensor.name,
+        value: latest.value,
+        unit: latest.unit,
+        trend,
+        change,
+        status,
+        updatedAt: latest.timestamp
+      };
+    })
+    .filter((s: any) => s !== null);
 }
 
-function buildHistorySeries(sensorId?: string): HistoricalSeries[] {
+function buildHistorySeries(sensorIdFilter?: string): HistoricalSeries[] {
   const db = getDatabase();
-  const rows = db
-    .prepare(
-      `
-      SELECT sensor_id as sensorId,
-             type as sensorType,
-             unit,
-             value,
-             timestamp
-      FROM readings
-      ${sensorId ? "WHERE sensor_id = ?" : ""}
-      ORDER BY datetime(timestamp) DESC
-    `
-    )
-    .all(sensorId ? [sensorId] : undefined) as Array<{
-      sensorId: string;
-      sensorType: string;
-      unit: string;
-      value: number;
-      timestamp: string;
-    }>;
+  const readings = (db.readings || [])
+    .filter((r: any) => !sensorIdFilter || r.sensor_id === sensorIdFilter)
+    .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   const grouped = new Map<string, HistoricalSeries>();
-  rows.forEach((row) => {
-    const key = row.sensorId;
+
+  readings.forEach((row: any) => {
+    const sensor = db.sensors?.find((s: any) => s.id === row.sensor_id);
+    if (!sensor) return;
+
+    const key = row.sensor_id;
     if (!grouped.has(key)) {
       grouped.set(key, {
-        sensorId: row.sensorId,
-        sensorType: row.sensorType as HistoricalSeries["sensorType"],
+        sensorId: row.sensor_id,
+        sensorType: sensor.type as any,
         unit: row.unit,
         points: []
       });

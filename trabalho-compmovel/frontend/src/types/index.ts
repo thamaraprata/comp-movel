@@ -56,6 +56,14 @@ export interface HistoricalSeries {
   points: HistoricalPoint[];
 }
 
+export interface AITip {
+  title: string;
+  description: string;
+  icon: string;
+  priority: "low" | "medium" | "high";
+  actions: string[];
+}
+
 export interface DashboardSnapshot {
   summaries: SensorSummary[];
   alerts: Alert[];

@@ -13,7 +13,8 @@ const envSchema = z.object({
   MQTT_SENSOR_TOPIC: z.string().default("sensors/+/data"),
   DATABASE_PATH: z.string().default("./data/monitoring.db"),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
-  TELEGRAM_CHAT_ID: z.string().optional()
+  TELEGRAM_CHAT_ID: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional()
 });
 
 const env = envSchema.parse(process.env);

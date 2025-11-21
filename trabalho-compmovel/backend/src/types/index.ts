@@ -1,68 +1,59 @@
-import type { SOCKET_EVENTS } from "../config/constants";
+export interface Sensor {
+  id: string;
+  name: string;
+  location: string;
+  type: 'temperature' | 'humidity' | 'pressure';
+  created_at: string;
+}
 
-export type SensorType = "temperature" | "humidity" | "airQuality" | "luminosity" | "pressure";
-
-export interface SensorReadingPayload {
-  sensorId: string;
-  type: SensorType;
+export interface SensorReading {
+  id: string;
+  sensor_id: string;
+  type: string;
   value: number;
   unit: string;
   timestamp: string;
-  location?: string;
   metadata?: Record<string, unknown>;
-}
-
-export interface Threshold {
-  sensorType: SensorType;
-  minValue: number | null;
-  maxValue: number | null;
-  unit: string;
-  updatedAt: string;
 }
 
 export interface Alert {
   id: string;
-  sensorId: string;
-  sensorType: SensorType;
-  message: string;
-  severity: "low" | "medium" | "high";
+  sensor_id: string;
+  rule: string;
   value: number;
-  threshold: number | null;
-  status: "new" | "acknowledged" | "resolved";
-  createdAt: string;
-  resolvedAt?: string;
+  threshold: number;
+  status: 'active' | 'resolved';
+  created_at: string;
+  resolved_at?: string;
 }
 
-export interface HistoricalPoint {
+export interface Threshold {
+  sensor_type: string;
+  min_value: number;
+  max_value: number;
+  updated_at: string;
+}
+
+export interface MQTTPayload {
+  sensorId: string;
+  type: string;
+  value: number;
+  unit?: string;
   timestamp: string;
-  value: number;
+  metadata?: Record<string, unknown>;
 }
 
-export interface HistoricalSeries {
-  sensorId: string;
-  sensorType: SensorType;
-  unit: string;
-  points: HistoricalPoint[];
+export interface WeatherContext {
+  temperature: number;
+  humidity: number;
+  location: string;
+  conditions: string;
 }
 
-export interface SensorSummary {
-  sensorId: string;
-  sensorType: SensorType;
-  label: string;
-  value: number;
-  unit: string;
-  trend: "up" | "down" | "stable";
-  change: number;
-  status: "normal" | "warning" | "critical";
-  updatedAt: string;
+export interface AITip {
+  title: string;
+  description: string;
+  icon: string;
+  priority: 'low' | 'medium' | 'high';
+  actions: string[];
 }
-
-export interface DashboardSnapshot {
-  summaries: SensorSummary[];
-  alerts: Alert[];
-  thresholds: Threshold[];
-  history: HistoricalSeries[];
-}
-
-export type SocketEventKey = keyof typeof SOCKET_EVENTS;
-

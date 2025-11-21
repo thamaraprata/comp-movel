@@ -28,6 +28,7 @@ pnpm run dev       # inicia API + MQTT + WebSocket
 | `DATABASE_PATH`       | Caminho do arquivo SQLite                   | `./data/monitoring.db`   |
 | `TELEGRAM_BOT_TOKEN`  | Token do bot (integração futura)            | -                        |
 | `TELEGRAM_CHAT_ID`    | Chat ID para notificações (integração futura) | -                      |
+| `GEMINI_API_KEY`      | API key do Google Gemini para dicas IA      | -                        |
 
 ## Scripts
 
@@ -36,6 +37,7 @@ pnpm run dev       # inicia API + MQTT + WebSocket
 - `pnpm run start` – rodar build em produção
 - `pnpm run migrate` – executa migrations SQL
 - `pnpm run seed` – insere dados de sensores de exemplo
+- `pnpm run simulate:sensors` – simula dados de sensores em tempo real via MQTT
 - `pnpm run test` – testes unitários (Vitest)
 
 ## Estrutura
@@ -43,10 +45,11 @@ pnpm run dev       # inicia API + MQTT + WebSocket
 - `src/config` – carregamento de variáveis, constantes, logger
 - `src/database` – conexão SQLite, migrations e seed
 - `src/mqtt` – cliente MQTT, parser de mensagens
-- `src/services` – regras de negócio (alertas, thresholds)
-- `src/routes` – rotas Express (dashboard, sensores, alertas)
+- `src/services` – regras de negócio (alertas, thresholds, sensores)
+- `src/routes` – rotas Express (dashboard, sensores, alertas, dicas de IA)
 - `src/realtime` – Socket.IO (eventos em tempo real)
-- `src/integrations` – integrações externas (Telegram)
+- `src/integrations` – integrações externas (Telegram, Google Gemini)
+- `src/types` – interfaces TypeScript compartilhadas
 
 ## Deploy
 

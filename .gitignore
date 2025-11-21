@@ -1,0 +1,56 @@
+# Dependencies
+trabalho-compmovel/backend/node_modules/
+trabalho-compmovel/frontend/node_modules/
+
+# Environment variables
+trabalho-compmovel/backend/.env
+trabalho-compmovel/backend/.env.local
+trabalho-compmovel/frontend/.env
+trabalho-compmovel/frontend/.env.local
+
+# Build outputs
+trabalho-compmovel/backend/dist/
+trabalho-compmovel/frontend/dist/
+trabalho-compmovel/frontend/.vite/
+
+# Database
+trabalho-compmovel/backend/data/
+trabalho-compmovel/backend/data.db
+trabalho-compmovel/backend/*.db
+
+# Logs
+trabalho-compmovel/backend/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+.DS_Store
+*.pem
+
+# Lock files (optional - uncomment if you prefer)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Production
+build/
+out/

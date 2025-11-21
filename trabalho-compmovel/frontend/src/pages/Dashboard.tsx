@@ -8,6 +8,7 @@ import { DashboardLayout } from "../components/DashboardLayout";
 import { RealtimeChart } from "../components/RealtimeChart";
 import { SensorCard } from "../components/SensorCard";
 import { ThresholdForm } from "../components/ThresholdForm";
+import { WeatherTips } from "../components/WeatherTips";
 
 interface DashboardProps {
   userName: string;
@@ -72,6 +73,8 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
       {loading ? (
         <div className="card p-6 text-center text-sm text-slate-500">Carregando dados...</div>
       ) : null}
+
+      {summaries.length > 0 && <WeatherTips sensors={summaries} location="Sua Casa" />}
 
       <section>
         <h2 className="text-lg font-semibold mb-4">Sensores</h2>
