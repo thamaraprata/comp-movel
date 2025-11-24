@@ -11,12 +11,11 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
     "migrate": "tsx src/database/migrate.ts",
     "seed": "tsx src/database/seed.ts",
-    "publish:sample": "tsx scripts/publish-sample.ts",
-    "simulate:sensors": "tsx scripts/sensor-simulator.ts",
     "test": "vitest"
   },
   "dependencies": {
     "@google/generative-ai": "^0.12.0",
+    "@influxdata/influxdb-client": "^1.33.2",
     "axios": "^1.7.7",
     "cors": "^2.8.5",
     "dayjs": "^1.11.13",

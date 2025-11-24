@@ -1,0 +1,152 @@
+[
+  {
+    "id": "weather_flow",
+    "type": "tab",
+    "label": "Weather Flow",
+    "disabled": false
+  },
+  {
+    "id": "weather_inject_timer",
+    "type": "inject",
+    "z": "weather_flow",
+    "name": "Coleta a cada 1 minuto",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "60",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 1,
+    "topic": "weather/collect",
+    "payload": "true",
+    "payloadType": "bool",
+    "x": 110,
+    "y": 160,
+    "wires": [
+      [
+        "weather_prepare_cities"
+      ]
+    ]
+  },
+  {
+    "id": "weather_prepare_cities",
+    "type": "function",
+    "z": "weather_flow",
+    "name": "Preparar cidades",
+    "func": "msg.cities = [\n  { name: 'Salvador', code: 'BR' },\n  { name: 'Fortaleza', code: 'BR' },\n  { name: 'Recife', code: 'BR' },\n  { name: 'Maceió', code: 'BR' },\n  { name: 'Teresina', code: 'BR' },\n  { name: 'São Luís', code: 'BR' },\n  { name: 'Natal', code: 'BR' },\n  { name: 'João Pessoa', code: 'BR' },\n  { name: 'Aracaju', code: 'BR' },\n  { name: 'Brasília', code: 'BR' },\n  { name: 'Goiânia', code: 'BR' },\n  { name: 'Cuiabá', code: 'BR' },\n  { name: 'Campo Grande', code: 'BR' },\n  { name: 'Manaus', code: 'BR' },\n  { name: 'Belém', code: 'BR' },\n  { name: 'Boa Vista', code: 'BR' },\n  { name: 'Macapá', code: 'BR' },\n  { name: 'Palmas', code: 'BR' },\n  { name: 'Porto Velho', code: 'BR' },\n  { name: 'Rio Branco', code: 'BR' },\n  { name: 'São Paulo', code: 'BR' },\n  { name: 'Rio de Janeiro', code: 'BR' },\n  { name: 'Belo Horizonte', code: 'BR' },\n  { name: 'Vitória', code: 'BR' },\n  { name: 'Curitiba', code: 'BR' },\n  { name: 'Porto Alegre', code: 'BR' },\n  { name: 'Florianópolis', code: 'BR' }\n];\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 310,
+    "y": 160,
+    "wires": [
+      [
+        "weather_loop_cities"
+      ]
+    ]
+  },
+  {
+    "id": "weather_loop_cities",
+    "type": "split",
+    "z": "weather_flow",
+    "name": "Iterar cidades",
+    "splt": "msg.cities",
+    "spltType": "jsonata",
+    "arraySplt": 1,
+    "arraySpltType": "num",
+    "stream": false,
+    "addname": "item",
+    "x": 510,
+    "y": 160,
+    "wires": [
+      [
+        "weather_api_call"
+      ]
+    ]
+  },
+  {
+    "id": "weather_api_call",
+    "type": "http request",
+    "z": "weather_flow",
+    "name": "Chamar OpenWeather API",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "https://api.openweathermap.org/data/2.5/weather?q={{{msg.item.name}}},{{{msg.item.code}}}&appid=SEU_TOKEN&units=metric&lang=pt_br",
+    "x": 710,
+    "y": 160,
+    "wires": [
+      [
+        "weather_parse_response"
+      ]
+    ]
+  },
+  {
+    "id": "weather_parse_response",
+    "type": "function",
+    "z": "weather_flow",
+    "name": "Processar resposta",
+    "func": "if (!msg.payload.main) {\n  node.warn('Erro na resposta da API');\n  return null;\n}\n\nconst data = msg.payload;\nconst cityData = msg.item;\n\nconst weather = {\n  city: cityData.name,\n  countryCode: cityData.code,\n  temperature: data.main.temp,\n  humidity: data.main.humidity,\n  conditions: data.weather[0].description,\n  windSpeed: data.wind.speed,\n  feelsLike: data.main.feels_like,\n  timestamp: new Date().toISOString()\n};\n\nmsg.payload = weather;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 910,
+    "y": 160,
+    "wires": [
+      [
+        "weather_influxdb_write"
+      ]
+    ]
+  },
+  {
+    "id": "weather_influxdb_write",
+    "type": "influxdb out",
+    "z": "weather_flow",
+    "influxdb": "influxdb_config",
+    "name": "Salvar no InfluxDB",
+    "measurement": "weather",
+    "precision": "ms",
+    "tags": "city,countryCode",
+    "fields": "temperature,humidity,conditions,windSpeed,feelsLike",
+    "x": 1110,
+    "y": 160,
+    "wires": [
+      [
+        "weather_debug"
+      ]
+    ]
+  },
+  {
+    "id": "weather_debug",
+    "type": "debug",
+    "z": "weather_flow",
+    "name": "Log de sucesso",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": true,
+    "complete": "payload.city",
+    "x": 1310,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "influxdb_config",
+    "type": "influxdb",
+    "hostname": "influxdb",
+    "port": "8086",
+    "database": "weather",
+    "name": "InfluxDB",
+    "usetls": false,
+    "influxdbVersion": "2.0",
+    "url": "http://influxdb:8086",
+    "rejectUnauthorized": false,
+    "token": "",
+    "org": "myorg",
+    "bucket": "weather"
+  }
+]

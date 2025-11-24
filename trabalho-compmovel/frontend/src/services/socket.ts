@@ -13,7 +13,7 @@ let socket: Socket | undefined;
 
 export function connectRealtime(handler: RealtimeHandler): Socket {
   if (!socket) {
-    socket = io(import.meta.env.VITE_WS_URL ?? "http://localhost:3333", {
+    socket = io(import.meta.env.VITE_WS_URL ?? "http://localhost:3334", {
       path: "/ws",
       transports: ["websocket"]
     });

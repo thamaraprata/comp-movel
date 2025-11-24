@@ -6,9 +6,8 @@ import { acknowledgeAlert, fetchDashboardSnapshot, updateThreshold } from "../se
 import { AlertList } from "../components/AlertList";
 import { DashboardLayout } from "../components/DashboardLayout";
 import { RealtimeChart } from "../components/RealtimeChart";
-import { SensorCard } from "../components/SensorCard";
 import { ThresholdForm } from "../components/ThresholdForm";
-import { WeatherTips } from "../components/WeatherTips";
+import { CityWeatherSelector } from "../components/CityWeatherSelector";
 
 interface DashboardProps {
   userName: string;
@@ -17,7 +16,6 @@ interface DashboardProps {
 
 export function Dashboard({ userName, onLogout }: DashboardProps) {
   const {
-    summaries,
     alerts,
     thresholds,
     history,
@@ -26,7 +24,6 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
     acknowledgeAlert: acknowledgeStoreAlert,
     setLoading
   } = useDashboardStore((state) => ({
-      summaries: state.summaries,
       alerts: state.alerts,
       thresholds: state.thresholds,
       history: state.history,
@@ -74,16 +71,9 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         <div className="card p-6 text-center text-sm text-slate-500">Carregando dados...</div>
       ) : null}
 
-      {summaries.length > 0 && <WeatherTips sensors={summaries} location="Sua Casa" />}
+      {/* Seletor de Cidades com Clima Real */}
+      <CityWeatherSelector />
 
-      <section>
-        <h2 className="text-lg font-semibold mb-4">Sensores</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {summaries.map((summary) => (
-            <SensorCard key={summary.sensorId} summary={summary} />
-          ))}
-        </div>
-      </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">

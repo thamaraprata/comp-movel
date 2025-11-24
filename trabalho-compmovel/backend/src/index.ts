@@ -5,7 +5,6 @@ import { ENV } from "./config/env";
 import { logger } from "./config/logger";
 import { migrate } from "./database/migrate";
 import { initSocketServer } from "./realtime/socket";
-import { initMqttClient } from "./mqtt/client";
 import { initGemini } from "./integrations/gemini.js";
 
 async function bootstrap() {
@@ -14,7 +13,6 @@ async function bootstrap() {
   const app = createApp();
   const server = createServer(app);
   initSocketServer(server);
-  initMqttClient();
   initGemini();
 
   server.listen(ENV.PORT, () => {

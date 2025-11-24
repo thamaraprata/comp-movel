@@ -36,16 +36,30 @@ export function WeatherTips({ sensors, location = "Sua localização" }: Weather
 
         const generatedTips = await generateWeatherTips(context);
         setTips(generatedTips);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Erro ao gerar dicas:", err);
-        setError("Não foi possível gerar dicas no momento");
+
+        // Verificar tipo de erro
+        if (err.code === "ECONNABORTED" || err.message?.includes("timeout")) {
+          setError("Requisição expirou. Backend pode estar lento.");
+        } else if (err.response?.status === 429) {
+          setError("Limite de requisições atingido. Tentando novamente em 1 minuto...");
+        } else {
+          setError("Não foi possível gerar dicas no momento");
+        }
       } finally {
         setLoading(false);
       }
     }
 
+    // Carregar dicas apenas uma vez ao montar o componente
     loadTips();
-  }, [sensors, location]);
+
+    // Depois, fazer requisição a cada minuto (60 segundos)
+    const interval = setInterval(loadTips, 60000);
+
+    return () => clearInterval(interval);
+  }, [location]);
 
   if (loading) {
     return (

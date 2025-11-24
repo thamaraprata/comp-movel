@@ -8,8 +8,8 @@ import type {
 } from "../types";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:3333/api",
-  timeout: 10_000
+  baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:3334/api",
+  timeout: 30_000 // Aumentado de 10s para 30s
 });
 
 export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
