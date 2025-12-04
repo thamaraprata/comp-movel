@@ -8,7 +8,7 @@ import { logger } from "../config/logger";
 import { getSensorSnapshot } from "../services/dashboardService";
 import { listAlerts } from "../services/alertService";
 
-let io: Server | null = null;
+export let io: Server | null = null;
 
 export function initSocketServer(server: HttpServer) {
   io = new Server(server, {

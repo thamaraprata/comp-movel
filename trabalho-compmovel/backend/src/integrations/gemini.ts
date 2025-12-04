@@ -117,3 +117,43 @@ The message should be clear, alert the user and suggest action. Respond with onl
     return `Alert: Sensor ${sensorId} with value ${value} (limit: ${threshold})`;
   }
 }
+
+// Função simplificada para gerar dicas de texto
+export async function getGeminiTips(weatherData: { temperature: number; humidity: number; conditions: string; windSpeed: number; feelsLike: number }): Promise<string> {
+  if (!client) {
+    logger.warn("Gemini client not initialized");
+    return "Dicas não disponíveis";
+  }
+
+  try {
+    const model = client.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    const prompt = `Você é um assistente meteorológico especializado em fornecer dicas práticas baseadas nas condições climáticas.
+
+Condições atuais:
+- Temperatura: ${weatherData.temperature}°C
+- Sensação térmica: ${weatherData.feelsLike}°C
+- Umidade: ${weatherData.humidity}%
+- Vento: ${weatherData.windSpeed} km/h
+- Condições: ${weatherData.conditions}
+
+Por favor, gere 2-3 dicas práticas e contextualizadas sobre:
+1. O que vestir
+2. Atividades recomendadas
+3. Cuidados com a saúde
+
+Responda com dicas curtas e objetivas, uma por linha.`;
+
+    const result = await model.generateContent(prompt);
+    const response = result.response.text();
+
+    return response;
+  } catch (error: any) {
+    if (error?.status === 429) {
+      logger.warn("Gemini API rate limit reached. Returning default tips.");
+      return "Mantenha-se hidratado\nVista roupas apropriadas para o clima\nUse protetor solar";
+    }
+    logger.error(error, "Error generating weather tips from Gemini");
+    return "Dicas não disponíveis no momento";
+  }
+}

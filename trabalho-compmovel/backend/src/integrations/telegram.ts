@@ -1,90 +1,185 @@
-import axios from "axios";
-
-import { ENV } from "../config/env";
+import { Telegraf, Context } from "telegraf";
 import { logger } from "../config/logger";
-import type { Alert, AITip } from "../types";
+import { getGeminiTips } from "./gemini";
+import { getCurrentWeatherRecord, getWeatherHistory } from "../services/weatherScheduler";
 
-const TELEGRAM_API_URL = "https://api.telegram.org";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const DEFAULT_CITY = process.env.OPENWEATHER_CITY || "São Paulo";
+const DEFAULT_COUNTRY_CODE = process.env.OPENWEATHER_COUNTRY_CODE || "BR";
 
-export async function sendTelegramAlert(alert: Alert) {
-  if (!ENV.TELEGRAM_BOT_TOKEN || !ENV.TELEGRAM_CHAT_ID) {
-    logger.debug("Telegram não configurado, alerta não enviado");
-    return;
-  }
+let bot: Telegraf | null = null;
 
-  const message = [
-    "🚨 *Alerta de Sensor*",
-    `Sensor: ${alert.sensor_id}`,
-    `Valor: ${alert.value}`,
-    `Limite: ${alert.threshold}`,
-    `Hora: ${alert.created_at}`
-  ].join("\n");
-
-  try {
-    await axios.post(`${TELEGRAM_API_URL}/bot${ENV.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: ENV.TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: "Markdown"
-    });
-    logger.info({ alertId: alert.id }, "Alerta enviado ao Telegram");
-  } catch (error) {
-    logger.error({ error }, "Falha ao enviar alerta ao Telegram");
-  }
+export interface TelegramUser {
+  id: number;
+  firstName: string;
+  username?: string;
+  city: string;
+  countryCode: string;
 }
 
-export async function sendTelegramTips(tips: AITip[], location: string = "Sua localização") {
-  if (!ENV.TELEGRAM_BOT_TOKEN || !ENV.TELEGRAM_CHAT_ID) {
-    logger.debug("Telegram não configurado, dicas não enviadas");
+const telegramUsers = new Map<number, TelegramUser>();
+
+export async function initTelegramBot(): Promise<void> {
+  if (!TELEGRAM_BOT_TOKEN) {
+    logger.warn("TELEGRAM_BOT_TOKEN not configured");
     return;
   }
 
-  if (!tips.length) {
-    return;
-  }
+  bot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
-  try {
-    let message = `💡 *Dicas Personalizadas para ${location}*\n\n`;
+  bot.command("start", async (ctx: Context) => {
+    const userId = ctx.from?.id;
+    if (userId) {
+      telegramUsers.set(userId, {
+        id: userId,
+        firstName: ctx.from?.first_name || "User",
+        username: ctx.from?.username,
+        city: DEFAULT_CITY,
+        countryCode: DEFAULT_COUNTRY_CODE
+      });
+    }
+    await ctx.reply("Welcome to Weather Bot!\n\nCommands: /clima /dicas /historico /stats /cidade /ajuda");
+  });
 
-    tips.forEach((tip, index) => {
-      message += `*${index + 1}. ${tip.title}*\n`;
-      message += `${tip.icon} ${tip.description}\n\n`;
+  bot.command("clima", async (ctx: Context) => {
+    const userId = ctx.from?.id;
+    const user = userId ? telegramUsers.get(userId) : null;
+    const city = user?.city || DEFAULT_CITY;
+    const countryCode = user?.countryCode || DEFAULT_COUNTRY_CODE;
 
-      if (tip.actions.length > 0) {
-        message += "*Ações recomendadas:*\n";
-        tip.actions.forEach(action => {
-          message += `• ${action}\n`;
-        });
-        message += "\n";
+    try {
+      const record = getCurrentWeatherRecord(city, countryCode);
+      if (!record) {
+        await ctx.reply(`No data for ${city}`);
+        return;
       }
-    });
+      const data = record.data;
+      const msg = `Weather in ${city}\n\nTemp: ${data.temperature}C\nFeel: ${data.feelsLike}C\nWind: ${data.windSpeed} km/h\nHumidity: ${data.humidity}%\nConditions: ${data.conditions}`;
+      await ctx.reply(msg);
+    } catch (error) {
+      await ctx.reply("Error getting weather");
+    }
+  });
 
-    await axios.post(`${TELEGRAM_API_URL}/bot${ENV.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: ENV.TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: "Markdown"
-    });
+  bot.command("dicas", async (ctx: Context) => {
+    const userId = ctx.from?.id;
+    const user = userId ? telegramUsers.get(userId) : null;
+    const city = user?.city || DEFAULT_CITY;
+    const countryCode = user?.countryCode || DEFAULT_COUNTRY_CODE;
 
-    logger.info({ tipsCount: tips.length }, "Dicas enviadas ao Telegram");
-  } catch (error) {
-    logger.error({ error }, "Falha ao enviar dicas ao Telegram");
-  }
+    try {
+      const record = getCurrentWeatherRecord(city, countryCode);
+      if (!record || !record.tips || record.tips.length === 0) {
+        await ctx.reply("No tips available");
+        return;
+      }
+      let msg = `Tips for ${city}:\n\n`;
+      record.tips.forEach((tip: string) => {
+        msg += `- ${tip}\n`;
+      });
+      await ctx.reply(msg);
+    } catch (error) {
+      await ctx.reply("Error getting tips");
+    }
+  });
+
+  bot.command("historico", async (ctx: Context) => {
+    const userId = ctx.from?.id;
+    const user = userId ? telegramUsers.get(userId) : null;
+    const city = user?.city || DEFAULT_CITY;
+    const countryCode = user?.countryCode || DEFAULT_COUNTRY_CODE;
+
+    try {
+      const history = getWeatherHistory(city, countryCode);
+      if (history.length === 0) {
+        await ctx.reply(`No history for ${city}`);
+        return;
+      }
+      let msg = `History for ${city} (${history.length} records)\n\n`;
+      const recent = history.slice(-5);
+      recent.forEach((r: any) => {
+        const time = new Date(r.timestamp).toLocaleTimeString("pt-BR");
+        msg += `${time}: ${r.data.temperature}C\n`;
+      });
+      await ctx.reply(msg);
+    } catch (error) {
+      await ctx.reply("Error getting history");
+    }
+  });
+
+  bot.command("stats", async (ctx: Context) => {
+    const userId = ctx.from?.id;
+    const user = userId ? telegramUsers.get(userId) : null;
+    const city = user?.city || DEFAULT_CITY;
+    const countryCode = user?.countryCode || DEFAULT_COUNTRY_CODE;
+
+    try {
+      const history = getWeatherHistory(city, countryCode);
+      if (history.length === 0) {
+        await ctx.reply(`No data for ${city}`);
+        return;
+      }
+      const temps: number[] = history.map((r: any) => r.data.temperature);
+      const min = Math.min(...temps);
+      const max = Math.max(...temps);
+      const avg = Math.round((temps.reduce((a: number, b: number) => a + b, 0) / temps.length) * 10) / 10;
+      const msg = `Stats for ${city}\n\nMin: ${min}C\nMax: ${max}C\nAvg: ${avg}C`;
+      await ctx.reply(msg);
+    } catch (error) {
+      await ctx.reply("Error getting stats");
+    }
+  });
+
+  bot.command("ajuda", async (ctx: Context) => {
+    await ctx.reply("Help:\n\n/clima - Current weather\n/dicas - Weather tips\n/historico - Last 24h\n/stats - Statistics\n/cidade - Change city\n/ajuda - This help");
+  });
+
+  bot.command("cidade", async (ctx: Context) => {
+    const userId = ctx.from?.id;
+    const text = ctx.message?.text || "";
+    const args = text.split(" ").slice(1).join(" ");
+
+    if (!args || args.trim().length === 0) {
+      await ctx.reply("Usage: /cidade Rio de Janeiro");
+      return;
+    }
+
+    if (userId) {
+      const user = telegramUsers.get(userId);
+      if (user) {
+        user.city = args;
+      } else {
+        telegramUsers.set(userId, {
+          id: userId,
+          firstName: ctx.from?.first_name || "User",
+          username: ctx.from?.username,
+          city: args,
+          countryCode: DEFAULT_COUNTRY_CODE
+        });
+      }
+    }
+    await ctx.reply(`City set to: ${args}`);
+  });
+
+  bot.on("message", async (ctx: Context) => {
+    await ctx.reply("Use /ajuda for commands");
+  });
+
+  bot.launch();
+  logger.info("Telegram bot started");
+
+  process.once("SIGINT", () => bot?.stop("SIGINT"));
+  process.once("SIGTERM", () => bot?.stop("SIGTERM"));
 }
 
-export async function sendTelegramMessage(text: string) {
-  if (!ENV.TELEGRAM_BOT_TOKEN || !ENV.TELEGRAM_CHAT_ID) {
-    logger.debug("Telegram não configurado, mensagem não enviada");
-    return;
-  }
-
-  try {
-    await axios.post(`${TELEGRAM_API_URL}/bot${ENV.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: ENV.TELEGRAM_CHAT_ID,
-      text,
-      parse_mode: "Markdown"
-    });
-    logger.info("Mensagem enviada ao Telegram");
-  } catch (error) {
-    logger.error({ error }, "Falha ao enviar mensagem ao Telegram");
-  }
+export function getTelegramBot(): Telegraf | null {
+  return bot;
 }
 
+export function getTelegramUser(userId: number): TelegramUser | undefined {
+  return telegramUsers.get(userId);
+}
+
+export function getAllTelegramUsers(): TelegramUser[] {
+  return Array.from(telegramUsers.values());
+}

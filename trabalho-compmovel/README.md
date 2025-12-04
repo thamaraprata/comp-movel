@@ -1,31 +1,34 @@
-# 🌍 Sistema de Monitoramento Ambiental com IA
+# 🌍 Sistema de Monitoramento Climático com IA
 
-Sistema completo de monitoramento ambiental desenvolvido para a disciplina **Computação Móvel e Ubíqua**. O sistema coleta dados de sensores IoT em tempo real, gera dicas personalizadas com IA (Google Gemini) e envia alertas via Telegram.
+Sistema inteligente de monitoramento climático desenvolvido para a disciplina **Computação Móvel e Ubíqua**. O sistema coleta dados de clima em tempo real via OpenWeather, gera dicas personalizadas com IA (Google Gemini), sincroniza dados entre dispositivos e oferece suporte offline via PWA.
 
 ## ✨ Features Principais
 
-- **🔄 Tempo Real**: WebSocket para atualizações instantâneas
-- **🤖 IA Gemini**: Dicas contextualizadas baseadas em temperatura/umidade
-- **📱 Responsivo**: Mobile, tablet e desktop
-- **📊 Gráficos**: Visualização histórica de dados
-- **🚨 Alertas**: Notificações quando sensores ultrapassam limites
-- **💬 Telegram**: Integração com Bot Telegram (opcional)
+- **🌤️ Clima em Tempo Real**: Atualização automática a cada 5 minutos
+- **🤖 IA Gemini**: Dicas contextualizadas baseadas em condições climáticas
+- **📱 Responsivo**: Mobile, tablet e desktop com continuidade entre dispositivos
+- **📊 Histórico**: Dados dos últimos 24h com estatísticas
+- **💬 Telegram**: Bot inteligente para consultas de clima
 - **🌓 Tema**: Suporte a tema claro/escuro
+- **📲 PWA**: Instalação como app, funcionamento offline e sincronização
+- **🔄 Sincronização**: Continuidade de experiência entre dispositivos
 
 ## 🏗️ Arquitetura
 
 ```
-[Sensores IoT]
-     ↓
-[MQTT Broker - Mosquitto]
+OpenWeather API
      ↓
 [Backend Node.js + Express]
-  ├── SQLite (histórico)
-  ├── Google Gemini (IA)
-  ├── Telegram Bot (alertas)
-  └── WebSocket (tempo real)
+  ├── node-cron (scheduler 5 min)
+  ├── SQLite (histórico 24h)
+  ├── Google Gemini (dicas)
+  ├── Telegram Bot (consultas)
+  └── WebSocket (atualizações em tempo real)
      ↓
 [Frontend React + Vite + Tailwind]
+  ├── Service Worker (PWA)
+  ├── LocalStorage (persistência)
+  └── Responsive Design (mobile-first)
 ```
 
 ## 📦 Stack Tecnológico
@@ -33,39 +36,26 @@ Sistema completo de monitoramento ambiental desenvolvido para a disciplina **Com
 ### Backend
 - **Node.js 20+** com TypeScript
 - **Express.js** para API REST
-- **MQTT** para ingestão de sensores
-- **Socket.IO** para WebSocket
-- **SQLite** para persistência
-- **Google Generative AI** para IA
+- **node-cron** para scheduler de atualização (5 min)
+- **Socket.IO** para WebSocket (atualizações em tempo real)
+- **SQLite** para persistência (histórico 24h)
+- **Google Generative AI** (Gemini) para dicas inteligentes
+- **Telegraf** para Bot Telegram
 - **Axios** para requisições HTTP
+- **OpenWeather API** para dados climáticos
 
 ### Frontend
 - **React 18** com TypeScript
 - **Vite** para build rápido
-- **Tailwind CSS** para estilos
+- **Tailwind CSS** para estilos responsivos
 - **Socket.IO Client** para WebSocket
-- **Recharts** para gráficos
-- **Zod** para validação
+- **Service Worker** para PWA e offline
+- **Lucide React** para ícones
+- **LocalStorage/IndexedDB** para sincronização offline
 
 ## 🚀 Início Rápido
 
-### 1️⃣ Instalar Mosquitto (MQTT Broker)
-
-Consulte **[MOSQUITTO_SETUP.md](./MOSQUITTO_SETUP.md)** para instruções completas.
-
-**Rápido:**
-```powershell
-# Windows (Chocolatey)
-choco install mosquitto
-
-# Linux
-sudo apt install mosquitto
-
-# macOS
-brew install mosquitto
-```
-
-### 2️⃣ Configurar Backend
+### 1️⃣ Configurar Backend
 
 ```bash
 cd backend
@@ -76,21 +66,16 @@ npm install
 # Criar arquivo .env
 cp env.example .env
 
-# (Opcional) Adicionar chave Gemini
-# GEMINI_API_KEY=sua_chave_aqui
+# IMPORTANTE: Configurar as variáveis
+# - OPENWEATHER_API_KEY (obrigatório)
+# - GEMINI_API_KEY (para dicas inteligentes)
+# - TELEGRAM_BOT_TOKEN (opcional, para Telegram)
 
 # Iniciar servidor
 npm run dev
 ```
 
-### 3️⃣ Iniciar Simulador (Terminal 2)
-
-```bash
-cd backend
-npm run simulate:sensors
-```
-
-### 4️⃣ Configurar Frontend
+### 2️⃣ Configurar Frontend
 
 ```bash
 cd frontend
@@ -104,6 +89,16 @@ npm run dev
 
 Acesse: **http://localhost:5173**
 
+### 3️⃣ (Opcional) Docker Compose
+
+```bash
+# Iniciar backend + frontend
+docker-compose up -d
+
+# Logs
+docker-compose logs -f
+```
+
 ## 📋 Documentação Completa
 
 - **[IMPLEMENTATION_STEPS.md](./IMPLEMENTATION_STEPS.md)** - Guia passo a passo das 4 fases
@@ -114,14 +109,17 @@ Acesse: **http://localhost:5173**
 - **[backend/README.md](./backend/README.md)** - Detalhes do backend
 - **[frontend/README.md](./frontend/README.md)** - Detalhes do frontend
 
-## 📊 Status das Fases
+## 📊 Status das Implementações
 
-| Fase | Status | Descrição |
-|------|--------|-----------|
-| 1️⃣ Sensores MQTT | ⏳ Pronto | Mosquitto precisa ser instalado |
-| 2️⃣ Google Gemini | ✅ Pronto | API Key necessária |
-| 3️⃣ Telegram Bot | ⏳ Pronto | Token e Chat ID necessários |
-| 4️⃣ Autenticação JWT | ⏳ Futuro | Próxima melhoria |
+| Feature | Status | Descrição |
+|---------|--------|-----------|
+| 🌤️ Clima OpenWeather | ✅ Completo | Atualiza a cada 5 minutos |
+| 🤖 Dicas Gemini | ✅ Completo | Processadas a cada atualização |
+| 💬 Telegram Bot | ✅ Completo | Preparado para configuração |
+| 📱 Responsividade | ✅ Completo | Mobile-first com grid responsivo |
+| 🔄 Sincronização | ✅ Completo | LocalStorage + WebSocket |
+| 📲 PWA | ✅ Completo | Service Worker + Manifest |
+| 🚀 Scheduler 5min | ✅ Completo | node-cron implementado |
 
 ## 🔑 Variáveis de Ambiente Essenciais
 
@@ -132,21 +130,19 @@ Acesse: **http://localhost:5173**
 PORT=3334
 CORS_ORIGIN=http://localhost:5173
 
-# MQTT
-MQTT_URL=mqtt://localhost:1883
-MQTT_USERNAME=
-MQTT_PASSWORD=
-MQTT_SENSOR_TOPIC=sensors/+/data
+# OpenWeather API (OBRIGATÓRIO)
+OPENWEATHER_API_KEY=sua_chave_aqui
+OPENWEATHER_CITY=São Paulo
+OPENWEATHER_COUNTRY_CODE=BR
 
 # Database
 DATABASE_PATH=./data/monitoring.db
 
-# IA (Obrigatório para dicas)
+# Google Gemini IA (Obrigatório para dicas)
 GEMINI_API_KEY=sua-chave-aqui
 
-# Telegram (Opcional)
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
+# Telegram Bot (Opcional)
+TELEGRAM_BOT_TOKEN=seu_token_aqui
 ```
 
 ## 🧪 Testando o Sistema
@@ -156,53 +152,98 @@ TELEGRAM_CHAT_ID=
 curl http://localhost:3334/health
 ```
 
-### Gerar Dicas de IA
+### Obter Dados de Clima Atualizados
 ```bash
-curl -X POST http://localhost:3334/api/tips/weather \
-  -H "Content-Type: application/json" \
-  -d '{
-    "temperature": 25,
-    "humidity": 60,
-    "location": "Sala",
-    "conditions": "Ensolarado"
-  }'
+curl http://localhost:3334/api/weather
 ```
 
-### Publicar Dado MQTT
+### Obter Histórico (últimas 24h)
 ```bash
-mosquitto_pub -h localhost -p 1883 \
-  -t "sensors/temp-01/data" \
-  -m '{"sensorId":"temp-01","type":"temperature","value":25.5,"unit":"°C","timestamp":"2024-11-23T14:00:00Z","metadata":{"location":"Sala"}}'
+curl http://localhost:3334/api/weather/history
 ```
 
-## 📚 Próximos Passos
+### Obter Estatísticas
+```bash
+curl http://localhost:3334/api/weather/stats
+```
 
-1. **Fase 1** - Instalar Mosquitto e validar sensores
-2. **Fase 2** - Obter API Key Gemini e testar dicas
-3. **Fase 3** - Criar Bot Telegram (opcional)
-4. **Fase 4** - Implementar autenticação real (futuro)
+### Forçar Atualização de Clima
+```bash
+curl -X POST http://localhost:3334/api/weather/refresh
+```
 
-Consulte **[IMPLEMENTATION_STEPS.md](./IMPLEMENTATION_STEPS.md)** para guia passo a passo!
+### Usar Telegram Bot
+```bash
+# 1. Configure TELEGRAM_BOT_TOKEN no .env
+# 2. Procure o bot no Telegram
+# 3. Use os comandos:
+#    /clima - Ver clima atual
+#    /dicas - Receber dicas
+#    /historico - Ver histórico
+#    /stats - Estatísticas
+#    /cidade Rio de Janeiro - Mudar cidade
+```
+
+## 🎯 Configuração Necessária
+
+### 1. OpenWeather API (OBRIGATÓRIO)
+1. Acesse https://openweathermap.org/api
+2. Crie uma conta gratuita
+3. Gere uma API Key
+4. Adicione em `backend/.env`: `OPENWEATHER_API_KEY=sua_chave`
+
+### 2. Google Gemini (Para dicas inteligentes)
+1. Acesse https://ai.google.dev
+2. Crie um projeto
+3. Gere uma API Key
+4. Adicione em `backend/.env`: `GEMINI_API_KEY=sua_chave`
+
+### 3. Telegram Bot (Opcional)
+1. Procure @BotFather no Telegram
+2. Crie um novo bot (`/newbot`)
+3. Copie o token
+4. Adicione em `backend/.env`: `TELEGRAM_BOT_TOKEN=seu_token`
+
+## 📱 Recursos de Computação Móvel & Ubíqua
+
+### Continuidade de Experiência
+- **Sincronização entre dispositivos**: LocalStorage + WebSocket permite usar no desktop e continuar no mobile
+- **Estado persistente**: Última cidade e preferências salvas localmente
+- **Offline-first**: PWA permite funcionar sem internet com cache
+
+### Princípios Implementados
+- ✅ **Acessibilidade cross-device**: Interface responsiva funciona em qualquer tela
+- ✅ **Sincronização de dados**: Dados climáticos compartilhados em tempo real
+- ✅ **Continuidade de contexto**: Informações persistem entre sessões
+- ✅ **Escalabilidade**: Suporta múltiplos dispositivos simultâneos
+- ✅ **Resiliência**: Funciona offline, sincroniza quando conectado
 
 ## 🛠️ Troubleshooting
 
-### MQTT Connection Refused
-```bash
-# Verificar se Mosquitto está rodando
-netstat -an | grep 1883
+### Clima não atualiza
+1. Verifique `OPENWEATHER_API_KEY` em `.env`
+2. Confirme que a cidade está configurada
+3. Verifique logs do backend
 
-# Se não estiver, iniciar Mosquitto
-mosquitto
-```
+### Dicas não aparecem
+1. Confirme `GEMINI_API_KEY` em `.env`
+2. Verifique se limite de requisições não foi atingido
+3. Tente gerar dicas manualmente via API
+
+### Telegram bot não responde
+1. Verifique `TELEGRAM_BOT_TOKEN` em `.env`
+2. Procure o bot no Telegram e envie `/start`
+3. Verifique logs do backend
 
 ### Frontend não carrega dados
 1. Verifique se backend está na porta 3334: `netstat -an | grep 3334`
 2. Abra DevTools (F12) e veja console
-3. Verifique `.env` do frontend
+3. Verifique `CORS_ORIGIN` em `.env`
 
-### Gemini não gera dicas
-1. Verifique API Key em `.env`
-2. Teste em https://aistudio.google.com
+### PWA não funciona
+1. Acesse via `localhost` (não em IP)
+2. Use HTTPS em produção
+3. Verifique se Service Worker está registrado (DevTools → Application)
 
 ## 📞 Suporte
 

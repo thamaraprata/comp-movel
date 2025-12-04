@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getWeatherData, getWeatherDescription } from "../../integrations/openweather";
 import { generateWeatherTips } from "../../integrations/gemini";
-import { getWeatherHistory, getWeatherStats } from "../../integrations/influxdb";
+import { getWeatherHistory, getCurrentWeatherRecord, updateWeatherForCity } from "../../services/weatherScheduler";
 import { CITIES } from "../../config/cities";
 import { logger } from "../../config/logger";
 
@@ -20,21 +20,35 @@ weatherRouter.get("/cities", (_req, res) => {
 weatherRouter.get("/", async (req, res) => {
   try {
     const { city, countryCode } = req.query;
-    const weatherData = await getWeatherData(
-      city as string | undefined,
-      countryCode as string | undefined
-    );
+    const finalCity = (city as string) || process.env.OPENWEATHER_CITY || "São Paulo";
+    const finalCountryCode = (countryCode as string) || "BR";
 
-    if (!weatherData) {
-      return res.status(503).json({
-        status: "unavailable",
-        message: "OpenWeather API não configurada ou indisponível"
+    // Tentar buscar do histórico (últimas 24h), caso contrário buscar direto da API
+    let record = getCurrentWeatherRecord(finalCity, finalCountryCode);
+
+    if (!record) {
+      // Se não tiver no histórico, buscar direto e retornar
+      const weatherData = await getWeatherData(finalCity, finalCountryCode);
+      if (!weatherData) {
+        return res.status(503).json({
+          status: "unavailable",
+          message: "OpenWeather API não configurada ou indisponível"
+        });
+      }
+
+      return res.json({
+        status: "success",
+        data: {
+          ...weatherData,
+          timestamp: Date.now(),
+          tips: []
+        }
       });
     }
 
     res.json({
       status: "success",
-      data: weatherData
+      data: record
     });
   } catch (error) {
     logger.error(error, "Erro ao obter dados de clima");
@@ -104,30 +118,20 @@ weatherRouter.get("/tips", async (req, res) => {
   }
 });
 
-// GET /api/weather/history - Obter histórico de clima do InfluxDB
+// GET /api/weather/history - Obter histórico de clima (últimas 24h)
 weatherRouter.get("/history", async (req, res) => {
   try {
-    const { city, countryCode, range } = req.query;
+    const { city, countryCode } = req.query;
 
-    if (!city) {
-      return res.status(400).json({
-        status: "error",
-        message: "Parâmetro 'city' é obrigatório"
-      });
-    }
-
+    const finalCity = (city as string) || process.env.OPENWEATHER_CITY || "São Paulo";
     const finalCountryCode = (countryCode as string) || "BR";
-    const finalRange = (range as string) || "-7d";
 
-    const history = await getWeatherHistory(
-      city as string,
-      finalCountryCode,
-      finalRange
-    );
+    const history = getWeatherHistory(finalCity, finalCountryCode);
 
     res.json({
       status: "success",
-      data: history
+      data: history,
+      count: history.length
     });
   } catch (error) {
     logger.error(error, "Erro ao obter histórico de clima");
@@ -138,33 +142,50 @@ weatherRouter.get("/history", async (req, res) => {
   }
 });
 
-// GET /api/weather/stats - Obter estatísticas de clima
+// GET /api/weather/stats - Obter estatísticas de clima (últimas 24h)
 weatherRouter.get("/stats", async (req, res) => {
   try {
-    const { city, countryCode, range } = req.query;
+    const { city, countryCode } = req.query;
 
-    if (!city) {
-      return res.status(400).json({
-        status: "error",
-        message: "Parâmetro 'city' é obrigatório"
-      });
-    }
-
+    const finalCity = (city as string) || process.env.OPENWEATHER_CITY || "São Paulo";
     const finalCountryCode = (countryCode as string) || "BR";
-    const finalRange = (range as string) || "-24h";
 
-    const stats = await getWeatherStats(
-      city as string,
-      finalCountryCode,
-      finalRange
-    );
+    const history = getWeatherHistory(finalCity, finalCountryCode);
 
-    if (!stats) {
+    if (history.length === 0) {
       return res.status(404).json({
         status: "not_found",
-        message: "Nenhum dado encontrado para o período especificado"
+        message: "Nenhum dado encontrado"
       });
     }
+
+    // Calcular estatísticas
+    const temperatures = history.map((r) => r.data.temperature);
+    const humidities = history.map((r) => r.data.humidity);
+    const windSpeeds = history.map((r) => r.data.windSpeed);
+
+    const stats = {
+      temperature: {
+        min: Math.min(...temperatures),
+        max: Math.max(...temperatures),
+        avg: Math.round((temperatures.reduce((a, b) => a + b, 0) / temperatures.length) * 10) / 10
+      },
+      humidity: {
+        min: Math.min(...humidities),
+        max: Math.max(...humidities),
+        avg: Math.round((humidities.reduce((a, b) => a + b, 0) / humidities.length) * 10) / 10
+      },
+      windSpeed: {
+        min: Math.min(...windSpeeds),
+        max: Math.max(...windSpeeds),
+        avg: Math.round((windSpeeds.reduce((a, b) => a + b, 0) / windSpeeds.length) * 10) / 10
+      },
+      recordCount: history.length,
+      timespan: {
+        start: history[0].timestamp,
+        end: history[history.length - 1].timestamp
+      }
+    };
 
     res.json({
       status: "success",
@@ -175,6 +196,29 @@ weatherRouter.get("/stats", async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Erro ao obter estatísticas de clima"
+    });
+  }
+});
+
+// POST /api/weather/refresh - Forçar atualização de dados climáticos
+weatherRouter.post("/refresh", async (req, res) => {
+  try {
+    const { city, countryCode } = req.query;
+
+    const finalCity = (city as string) || process.env.OPENWEATHER_CITY || "São Paulo";
+    const finalCountryCode = (countryCode as string) || "BR";
+
+    await updateWeatherForCity(finalCity, finalCountryCode);
+
+    res.json({
+      status: "success",
+      message: "Dados de clima atualizados"
+    });
+  } catch (error) {
+    logger.error(error, "Erro ao atualizar dados de clima");
+    res.status(500).json({
+      status: "error",
+      message: "Erro ao atualizar dados de clima"
     });
   }
 });

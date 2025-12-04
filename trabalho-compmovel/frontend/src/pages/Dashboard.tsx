@@ -8,6 +8,7 @@ import { DashboardLayout } from "../components/DashboardLayout";
 import { RealtimeChart } from "../components/RealtimeChart";
 import { ThresholdForm } from "../components/ThresholdForm";
 import { CityWeatherSelector } from "../components/CityWeatherSelector";
+import { WeatherCard } from "../components/WeatherCard";
 
 interface DashboardProps {
   userName: string;
@@ -74,8 +75,12 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
       {/* Seletor de Cidades com Clima Real */}
       <CityWeatherSelector />
 
+      {/* Cartão de Clima Responsivo */}
+      <section className="mt-6">
+        <WeatherCard />
+      </section>
 
-      <section className="grid gap-6 lg:grid-cols-3">
+      <section className="grid gap-6 lg:grid-cols-3 mt-6">
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Histórico recente</h2>

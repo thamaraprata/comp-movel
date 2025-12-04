@@ -1,51 +1,6 @@
 version: '3.8'
 
 services:
-  # InfluxDB - Banco de dados de série temporal
-  influxdb:
-    image: influxdb:2.7-alpine
-    container_name: influxdb
-    ports:
-      - "8086:8086"
-    environment:
-      INFLUXDB_DB: weather
-      INFLUXDB_ADMIN_USER: admin
-      INFLUXDB_ADMIN_PASSWORD: admin123456
-      INFLUXDB_HTTP_AUTH_ENABLED: "true"
-      # Configuração para acesso remoto (necessário para Node-RED)
-      INFLUXDB_BIND_ADDRESS: ":8086"
-    volumes:
-      - influxdb_data:/var/lib/influxdb2
-    networks:
-      - monitoring
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  # Node-RED - Orquestração e coleta de dados
-  nodered:
-    image: nodered/node-red:latest
-    container_name: nodered
-    ports:
-      - "1880:1880"
-    environment:
-      - NODE_RED_ENABLE_PROJECTS=false
-      - TZ=America/Sao_Paulo
-    volumes:
-      - nodered_data:/data
-    networks:
-      - monitoring
-    depends_on:
-      influxdb:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:1880/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
   # Backend (já existente, apenas orquestrado)
   backend:
     build: ./backend
@@ -60,17 +15,11 @@ services:
       PORT: 3334
       CORS_ORIGIN: http://localhost:5173
       DATABASE_PATH: ./data/monitoring.db
-      INFLUXDB_URL: http://influxdb:8086
-      INFLUXDB_ORG: myorg
-      INFLUXDB_BUCKET: weather
     volumes:
       - ./backend:/app
       - /app/node_modules
     networks:
       - monitoring
-    depends_on:
-      influxdb:
-        condition: service_healthy
 
   # Frontend (já existente, apenas orquestrado)
   frontend:
@@ -86,10 +35,6 @@ services:
       - monitoring
     depends_on:
       - backend
-
-volumes:
-  influxdb_data:
-  nodered_data:
 
 networks:
   monitoring:
