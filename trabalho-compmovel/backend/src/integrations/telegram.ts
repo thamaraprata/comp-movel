@@ -1,7 +1,9 @@
 import { Telegraf, Context } from "telegraf";
-import { logger } from "../config/logger";
-import { getGeminiTips } from "./gemini";
-import { getCurrentWeatherRecord, getWeatherHistory } from "../services/weatherScheduler";
+import { logger } from "../config/logger.js";
+import { generateWeatherTips } from "./gemini.js";
+import { getCurrentWeatherRecord, getWeatherHistory } from "../services/weatherScheduler.js";
+import { getWeatherData } from "./openweather.js";
+import { CITIES } from "../config/cities.js";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const DEFAULT_CITY = process.env.OPENWEATHER_CITY || "São Paulo";
@@ -19,6 +21,18 @@ export interface TelegramUser {
 
 const telegramUsers = new Map<number, TelegramUser>();
 
+// Helper para obter emoji baseado nas condições climáticas
+function getWeatherEmoji(conditions: string): string {
+  const lower = conditions.toLowerCase();
+  if (lower.includes("chuva") || lower.includes("rain")) return "🌧️";
+  if (lower.includes("nuvem") || lower.includes("cloud") || lower.includes("nublado")) return "☁️";
+  if (lower.includes("sol") || lower.includes("sunny") || lower.includes("clear") || lower.includes("limpo")) return "☀️";
+  if (lower.includes("nevoeiro") || lower.includes("fog") || lower.includes("neblina")) return "🌫️";
+  if (lower.includes("neve") || lower.includes("snow")) return "❄️";
+  if (lower.includes("tempestade") || lower.includes("storm")) return "⛈️";
+  return "🌤️";
+}
+
 export async function initTelegramBot(): Promise<void> {
   if (!TELEGRAM_BOT_TOKEN) {
     logger.warn("TELEGRAM_BOT_TOKEN not configured");
@@ -29,6 +43,8 @@ export async function initTelegramBot(): Promise<void> {
 
   bot.command("start", async (ctx: Context) => {
     const userId = ctx.from?.id;
+    const firstName = ctx.from?.first_name || "amigo";
+
     if (userId) {
       telegramUsers.set(userId, {
         id: userId,
@@ -38,7 +54,21 @@ export async function initTelegramBot(): Promise<void> {
         countryCode: DEFAULT_COUNTRY_CODE
       });
     }
-    await ctx.reply("Welcome to Weather Bot!\n\nCommands: /clima /dicas /historico /stats /cidade /ajuda");
+
+    const welcomeMsg = `🌤️ *Olá, ${firstName}!* Bem-vindo ao Bot de Clima\n\n` +
+      `Receba informações climáticas e dicas personalizadas!\n\n` +
+      `📍 *Sua cidade atual:* ${DEFAULT_CITY}\n\n` +
+      `*Comandos disponíveis:*\n` +
+      `🌡️ /clima - Clima atual\n` +
+      `💡 /dicas - Dicas personalizadas com IA\n` +
+      `📊 /historico - Últimas 24 horas\n` +
+      `📈 /stats - Estatísticas do dia\n` +
+      `📍 /cidade - Trocar cidade\n` +
+      `🏙️ /cidades - Ver cidades disponíveis\n` +
+      `❓ /ajuda - Ajuda completa\n\n` +
+      `Use /cidade para escolher sua cidade!`;
+
+    await ctx.reply(welcomeMsg, { parse_mode: "Markdown" });
   });
 
   bot.command("clima", async (ctx: Context) => {
@@ -48,16 +78,46 @@ export async function initTelegramBot(): Promise<void> {
     const countryCode = user?.countryCode || DEFAULT_COUNTRY_CODE;
 
     try {
-      const record = getCurrentWeatherRecord(city, countryCode);
+      await ctx.reply("🔄 Buscando dados do clima...");
+
+      // Tentar obter do histórico primeiro
+      let record = getCurrentWeatherRecord(city, countryCode);
+
+      // Se não tiver no histórico, buscar direto da API
       if (!record) {
-        await ctx.reply(`No data for ${city}`);
+        const weatherData = await getWeatherData(city, countryCode);
+        if (weatherData) {
+          record = {
+            city,
+            countryCode,
+            data: weatherData,
+            timestamp: Date.now(),
+            tips: []
+          };
+        }
+      }
+
+      if (!record) {
+        await ctx.reply(`❌ Não foi possível obter dados para ${city}`);
         return;
       }
+
       const data = record.data;
-      const msg = `Weather in ${city}\n\nTemp: ${data.temperature}C\nFeel: ${data.feelsLike}C\nWind: ${data.windSpeed} km/h\nHumidity: ${data.humidity}%\nConditions: ${data.conditions}`;
-      await ctx.reply(msg);
+      const tempEmoji = data.temperature > 25 ? "🌡️" : data.temperature < 15 ? "❄️" : "🌤️";
+      const conditionEmoji = getWeatherEmoji(data.conditions);
+
+      const msg = `${conditionEmoji} *Clima em ${city}*\n\n` +
+        `${tempEmoji} *Temperatura:* ${data.temperature}°C\n` +
+        `🌡️ *Sensação:* ${data.feelsLike}°C\n` +
+        `💧 *Umidade:* ${data.humidity}%\n` +
+        `💨 *Vento:* ${data.windSpeed} km/h\n` +
+        `☁️ *Condições:* ${data.conditions}\n\n` +
+        `🕐 Atualizado: ${new Date(record.timestamp).toLocaleTimeString("pt-BR")}`;
+
+      await ctx.reply(msg, { parse_mode: "Markdown" });
     } catch (error) {
-      await ctx.reply("Error getting weather");
+      logger.error(error, "Error in /clima command");
+      await ctx.reply("❌ Erro ao buscar clima. Tente novamente.");
     }
   });
 
@@ -68,18 +128,69 @@ export async function initTelegramBot(): Promise<void> {
     const countryCode = user?.countryCode || DEFAULT_COUNTRY_CODE;
 
     try {
-      const record = getCurrentWeatherRecord(city, countryCode);
-      if (!record || !record.tips || record.tips.length === 0) {
-        await ctx.reply("No tips available");
+      await ctx.reply("🤖 Gerando dicas personalizadas com IA...");
+
+      // Buscar dados do clima
+      let record = getCurrentWeatherRecord(city, countryCode);
+      if (!record) {
+        const weatherData = await getWeatherData(city, countryCode);
+        if (weatherData) {
+          record = {
+            city,
+            countryCode,
+            data: weatherData,
+            timestamp: Date.now(),
+            tips: []
+          };
+        }
+      }
+
+      if (!record) {
+        await ctx.reply(`❌ Não foi possível obter dados para ${city}`);
         return;
       }
-      let msg = `Tips for ${city}:\n\n`;
-      record.tips.forEach((tip: string) => {
-        msg += `- ${tip}\n`;
+
+      // Gerar dicas com IA
+      const tips = await generateWeatherTips({
+        temperature: record.data.temperature,
+        humidity: record.data.humidity,
+        location: city,
+        conditions: record.data.conditions
       });
-      await ctx.reply(msg);
+
+      if (!tips || tips.length === 0) {
+        await ctx.reply("❌ Não foi possível gerar dicas no momento.");
+        return;
+      }
+
+      let msg = `💡 *Dicas Personalizadas para ${city}*\n`;
+      msg += `🌡️ ${record.data.temperature}°C • 💧 ${record.data.humidity}%\n\n`;
+
+      tips.forEach((tip, index) => {
+        const priorityEmoji = tip.priority === "high" ? "🔴" : tip.priority === "medium" ? "🟡" : "🟢";
+        msg += `${tip.icon} *${tip.title}* ${priorityEmoji}\n`;
+        msg += `${tip.description}\n\n`;
+
+        if (tip.actions && tip.actions.length > 0) {
+          msg += `✅ *Ações:*\n`;
+          tip.actions.forEach(action => {
+            msg += `  • ${action}\n`;
+          });
+          msg += `\n`;
+        }
+
+        // Separador entre dicas (exceto última)
+        if (index < tips.length - 1) {
+          msg += `━━━━━━━━━━━━━\n\n`;
+        }
+      });
+
+      msg += `\n🤖 _Gerado por IA Gemini_`;
+
+      await ctx.reply(msg, { parse_mode: "Markdown" });
     } catch (error) {
-      await ctx.reply("Error getting tips");
+      logger.error(error, "Error in /dicas command");
+      await ctx.reply("❌ Erro ao gerar dicas. Tente novamente.");
     }
   });
 
@@ -131,38 +242,116 @@ export async function initTelegramBot(): Promise<void> {
   });
 
   bot.command("ajuda", async (ctx: Context) => {
-    await ctx.reply("Help:\n\n/clima - Current weather\n/dicas - Weather tips\n/historico - Last 24h\n/stats - Statistics\n/cidade - Change city\n/ajuda - This help");
+    const helpMsg = `📖 *Guia Completo do Bot*\n\n` +
+      `*Comandos de Clima:*\n` +
+      `🌡️ /clima - Ver clima atual da sua cidade\n` +
+      `💡 /dicas - Dicas personalizadas com IA\n` +
+      `📊 /historico - Últimas 5 leituras\n` +
+      `📈 /stats - Estatísticas do dia (min/max/média)\n\n` +
+      `*Configuração:*\n` +
+      `📍 /cidade - Ver ou trocar cidade\n` +
+      `🏙️ /cidades - Lista de cidades disponíveis\n\n` +
+      `*Outros:*\n` +
+      `❓ /ajuda - Este guia\n` +
+      `/start - Reiniciar bot\n\n` +
+      `*Dicas de Uso:*\n` +
+      `• Use /cidade primeiro para escolher sua localização\n` +
+      `• As dicas são geradas com IA e incluem lugares específicos da cidade\n` +
+      `• Dados atualizados a cada 5 minutos\n\n` +
+      `🤖 _Bot desenvolvido com Node.js + Gemini AI_`;
+
+    await ctx.reply(helpMsg, { parse_mode: "Markdown" });
+  });
+
+  bot.command("cidades", async (ctx: Context) => {
+    try {
+      let msg = `🏙️ *Cidades Disponíveis*\n\n`;
+      msg += `Use /cidade [nome] para trocar\n\n`;
+
+      const regions = {
+        "🌍 Nordeste": ['BA', 'CE', 'PE', 'AL', 'PI', 'MA', 'RN', 'PB', 'SE'],
+        "🏢 Centro-Oeste": ['DF', 'GO', 'MT', 'MS'],
+        "🌳 Norte": ['AM', 'PA', 'RR', 'AP', 'TO', 'RO', 'AC'],
+        "🏙️ Sudeste": ['SP', 'RJ', 'MG', 'ES'],
+        "⛰️ Sul": ['PR', 'RS', 'SC']
+      };
+
+      for (const [region, states] of Object.entries(regions)) {
+        msg += `*${region}*\n`;
+        const citiesInRegion = CITIES.filter(c => states.includes(c.state));
+        citiesInRegion.forEach(city => {
+          msg += `  • ${city.name} (${city.state})\n`;
+        });
+        msg += `\n`;
+      }
+
+      msg += `\n💡 _Exemplo:_ /cidade Goiânia`;
+
+      await ctx.reply(msg, { parse_mode: "Markdown" });
+    } catch (error) {
+      logger.error(error, "Error in /cidades command");
+      await ctx.reply("❌ Erro ao listar cidades.");
+    }
   });
 
   bot.command("cidade", async (ctx: Context) => {
     const userId = ctx.from?.id;
     const text = ctx.message?.text || "";
-    const args = text.split(" ").slice(1).join(" ");
+    const args = text.split(" ").slice(1).join(" ").trim();
 
-    if (!args || args.trim().length === 0) {
-      await ctx.reply("Usage: /cidade Rio de Janeiro");
+    if (!args || args.length === 0) {
+      const currentCity = userId ? telegramUsers.get(userId)?.city : DEFAULT_CITY;
+      await ctx.reply(
+        `📍 *Sua cidade atual:* ${currentCity}\n\n` +
+        `Para trocar, use:\n` +
+        `/cidade [nome da cidade]\n\n` +
+        `Exemplo: /cidade Goiânia\n\n` +
+        `Use /cidades para ver todas disponíveis`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    // Verificar se a cidade existe
+    const cityExists = CITIES.find(c =>
+      c.name.toLowerCase() === args.toLowerCase()
+    );
+
+    if (!cityExists) {
+      await ctx.reply(
+        `❌ Cidade "${args}" não encontrada.\n\n` +
+        `Use /cidades para ver cidades disponíveis.`
+      );
       return;
     }
 
     if (userId) {
       const user = telegramUsers.get(userId);
       if (user) {
-        user.city = args;
+        user.city = cityExists.name;
       } else {
         telegramUsers.set(userId, {
           id: userId,
           firstName: ctx.from?.first_name || "User",
           username: ctx.from?.username,
-          city: args,
+          city: cityExists.name,
           countryCode: DEFAULT_COUNTRY_CODE
         });
       }
     }
-    await ctx.reply(`City set to: ${args}`);
+
+    await ctx.reply(
+      `✅ *Cidade alterada para:* ${cityExists.name} (${cityExists.state})\n\n` +
+      `Use /clima ou /dicas para ver informações!`,
+      { parse_mode: "Markdown" }
+    );
   });
 
   bot.on("message", async (ctx: Context) => {
-    await ctx.reply("Use /ajuda for commands");
+    await ctx.reply(
+      "❓ Não entendi esse comando.\n\n" +
+      "Use /ajuda para ver todos os comandos disponíveis!"
+    );
   });
 
   bot.launch();
