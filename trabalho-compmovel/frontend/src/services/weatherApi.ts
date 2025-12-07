@@ -27,7 +27,8 @@ export async function getWeatherData(city?: string): Promise<WeatherData | null>
   try {
     const params = city ? { city } : {};
     const { data } = await axios.get(API_BASE_URL, { params });
-    return data.data || null;
+    // O backend retorna { status, data: WeatherRecord { city, countryCode, data: WeatherData, timestamp, tips } }
+    return data.data?.data || null;
   } catch (error) {
     console.error("Erro ao obter dados de clima:", error);
     return null;

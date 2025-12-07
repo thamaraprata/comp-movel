@@ -1,63 +1,68 @@
 import { randomUUID } from "node:crypto";
 
-import { getDatabase } from "./connection";
-import { migrate } from "./migrate";
-import { logger } from "../config/logger";
+import { getDatabase, saveDB } from "./connection.js";
+import { migrate } from "./migrate.js";
+import { logger } from "../config/logger.js";
 
 const DEFAULT_SENSORS = [
-  { id: "temp-01", name: "Sensor de Temperatura - Lab 1", type: "temperature", unit: "°C" },
-  { id: "hum-01", name: "Sensor de Umidade - Lab 1", type: "humidity", unit: "%" },
-  { id: "air-01", name: "Qualidade do Ar - Sala 2", type: "airQuality", unit: "AQI" },
-  { id: "lum-01", name: "Luminosidade - Auditório", type: "luminosity", unit: "lux" }
+  { id: "temp-01", name: "Sensor de Temperatura - Lab 1", type: "temperature", unit: "°C", location: "Campus Principal" },
+  { id: "hum-01", name: "Sensor de Umidade - Lab 1", type: "humidity", unit: "%", location: "Campus Principal" },
+  { id: "air-01", name: "Qualidade do Ar - Sala 2", type: "airQuality", unit: "AQI", location: "Campus Principal" },
+  { id: "lum-01", name: "Luminosidade - Auditório", type: "luminosity", unit: "lux", location: "Campus Principal" }
 ];
 
 export async function seed() {
   await migrate();
   const db = getDatabase();
 
-  const insertSensor = db.prepare(
-    `INSERT OR IGNORE INTO sensors (id, name, location, type) VALUES (@id, @name, @location, @type)`
-  );
-  DEFAULT_SENSORS.forEach((sensor) =>
-    insertSensor.run({ ...sensor, location: "Campus Principal" })
-  );
-
-  const thresholdStmt = db.prepare(
-    `INSERT OR IGNORE INTO thresholds (sensor_type, min_value, max_value, unit, updated_at)
-     VALUES (@sensorType, @minValue, @maxValue, @unit, @updatedAt)`
-  );
-
-  const now = new Date().toISOString();
+  // Adicionar sensores (se não existirem)
   DEFAULT_SENSORS.forEach((sensor) => {
-    thresholdStmt.run({
-      sensorType: sensor.type,
-      minValue: sensor.type === "temperature" ? 18 : null,
-      maxValue: sensor.type === "temperature" ? 28 : null,
-      unit: sensor.unit,
-      updatedAt: now
-    });
+    const exists = db.sensors.find((s: any) => s.id === sensor.id);
+    if (!exists) {
+      db.sensors.push(sensor);
+    }
   });
 
-  const readingStmt = db.prepare(
-    `INSERT INTO readings (id, sensor_id, type, value, unit, timestamp, metadata)
-     VALUES (@id, @sensorId, @type, @value, @unit, @timestamp, @metadata)`
-  );
+  // Adicionar thresholds
+  const now = new Date().toISOString();
+  logger.info(`Adicionando thresholds... Total atual: ${db.thresholds.length}`);
 
+  DEFAULT_SENSORS.forEach((sensor) => {
+    const exists = db.thresholds.find((t: any) => t.sensor_type === sensor.type);
+    if (!exists) {
+      const threshold = {
+        sensor_type: sensor.type,
+        min_value: sensor.type === "temperature" ? 18 : sensor.type === "humidity" ? 30 : null,
+        max_value: sensor.type === "temperature" ? 28 : sensor.type === "humidity" ? 70 : null,
+        unit: sensor.unit,
+        updated_at: now
+      };
+      db.thresholds.push(threshold);
+      logger.info(`Threshold adicionado para ${sensor.type}:`, threshold);
+    } else {
+      logger.info(`Threshold já existe para ${sensor.type}`);
+    }
+  });
+
+  logger.info(`Total de thresholds após seed: ${db.thresholds.length}`);
+
+  // Adicionar leituras de exemplo (últimas 30 leituras)
   DEFAULT_SENSORS.forEach((sensor, index) => {
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
       const timestamp = new Date(Date.now() - i * 60_000 - index * 10_000).toISOString();
-      readingStmt.run({
+      db.readings.push({
         id: randomUUID(),
-        sensorId: sensor.id,
+        sensor_id: sensor.id,
         type: sensor.type,
         value: generateValue(sensor.type, i),
         unit: sensor.unit,
         timestamp,
-        metadata: JSON.stringify({ sample: true })
+        metadata: { sample: true }
       });
     }
   });
 
+  saveDB();
   logger.info("Seed executado com sucesso");
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSocket } from "../hooks/useSocket";
-import { Cloud, Droplets, Wind, Thermometer, RefreshCw, AlertCircle } from "lucide-react";
+import { Cloud, Droplets, Wind, Thermometer, RefreshCw, AlertCircle, MapPin } from "lucide-react";
 
 interface WeatherData {
   temperature: number;
@@ -18,18 +18,55 @@ interface WeatherRecord {
   tips?: string[];
 }
 
-export function WeatherCard() {
+interface City {
+  name: string;
+  state: string;
+  country: string;
+  countryCode: string;
+}
+
+interface WeatherCardProps {
+  onCityChange?: (city: string) => void;
+}
+
+export function WeatherCard({ onCityChange }: WeatherCardProps = { onCityChange: undefined }) {
   const [weather, setWeather] = useState<WeatherRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState(300); // 5 minutos em segundos
+  const [cities, setCities] = useState<City[]>([]);
+  const [selectedCity, setSelectedCity] = useState<string>("São Paulo");
   const socket = useSocket();
+
+  // Notificar o pai quando a cidade mudar
+  const handleCityChange = (city: string) => {
+    console.log(`[WeatherCard] Cidade selecionada: ${city}`);
+    setSelectedCity(city);
+    onCityChange?.(city);
+  };
+
+  // Carregar lista de cidades
+  useEffect(() => {
+    async function loadCities() {
+      try {
+        const response = await fetch("/api/weather/cities");
+        if (response.ok) {
+          const data = await response.json();
+          setCities(data.data);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar cidades:", error);
+      }
+    }
+    loadCities();
+  }, []);
 
   useEffect(() => {
     // Fetch dados iniciais
     const fetchWeather = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/weather");
+        const params = new URLSearchParams({ city: selectedCity });
+        const response = await fetch(`/api/weather?${params}`);
         if (response.ok) {
           const data = await response.json();
           setWeather(data.data);
@@ -57,7 +94,7 @@ export function WeatherCard() {
         socket.off("weather:updated");
       }
     };
-  }, [socket]);
+  }, [socket, selectedCity]);
 
   // Contador regressivo para próxima atualização
   useEffect(() => {
@@ -110,6 +147,59 @@ export function WeatherCard() {
 
   return (
     <div className="card p-6">
+      {/* Seletor de Cidades */}
+      {cities.length > 0 && (
+        <div className="mb-6 pb-4 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex items-center gap-2 mb-2">
+            <MapPin className="w-4 h-4 text-blue-500" />
+            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Selecione a Cidade
+            </label>
+          </div>
+          <select
+            value={selectedCity}
+            onChange={(e) => handleCityChange(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          >
+            <optgroup label="🌍 Nordeste">
+              {cities.filter(c => ['BA', 'CE', 'PE', 'AL', 'PI', 'MA', 'RN', 'PB', 'SE'].includes(c.state)).map((city) => (
+                <option key={`${city.name}-${city.state}`} value={city.name}>
+                  {city.name} ({city.state})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="🏢 Centro-Oeste">
+              {cities.filter(c => ['DF', 'GO', 'MT', 'MS'].includes(c.state)).map((city) => (
+                <option key={`${city.name}-${city.state}`} value={city.name}>
+                  {city.name} ({city.state})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="🌳 Norte">
+              {cities.filter(c => ['AM', 'PA', 'RR', 'AP', 'TO', 'RO', 'AC'].includes(c.state)).map((city) => (
+                <option key={`${city.name}-${city.state}`} value={city.name}>
+                  {city.name} ({city.state})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="🏙️ Sudeste">
+              {cities.filter(c => ['SP', 'RJ', 'MG', 'ES'].includes(c.state)).map((city) => (
+                <option key={`${city.name}-${city.state}`} value={city.name}>
+                  {city.name} ({city.state})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="⛰️ Sul">
+              {cities.filter(c => ['PR', 'RS', 'SC'].includes(c.state)).map((city) => (
+                <option key={`${city.name}-${city.state}`} value={city.name}>
+                  {city.name} ({city.state})
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
+      )}
+
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -205,23 +295,6 @@ export function WeatherCard() {
         </div>
       </div>
 
-      {/* Dicas */}
-      {weather.tips && weather.tips.length > 0 && (
-        <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
-          <h3 className="text-sm font-semibold mb-3">💡 Dicas para hoje</h3>
-          <ul className="space-y-2">
-            {weather.tips.map((tip, index) => (
-              <li
-                key={index}
-                className="text-sm text-slate-700 dark:text-slate-300 flex items-start gap-2"
-              >
-                <span className="text-amber-500 mt-1">→</span>
-                <span>{tip}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

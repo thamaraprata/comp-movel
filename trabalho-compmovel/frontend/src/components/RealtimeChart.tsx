@@ -66,26 +66,54 @@ export function RealtimeChart({ series }: RealtimeChartProps) {
     plugins: {
       legend: {
         display: true,
-        position: "bottom" as const
+        position: "bottom" as const,
+        labels: {
+          boxWidth: 12,
+          padding: 8,
+          font: {
+            size: 11
+          }
+        }
+      },
+      tooltip: {
+        mode: 'index' as const,
+        intersect: false
       }
     },
     scales: {
       x: {
         grid: {
           display: false
+        },
+        ticks: {
+          maxRotation: 45,
+          minRotation: 0,
+          font: {
+            size: 10
+          }
         }
       },
       y: {
         ticks: {
-          callback: (value: number | string) => `${value}`
+          callback: (value: number | string) => `${value}`,
+          font: {
+            size: 10
+          }
         }
       }
+    },
+    interaction: {
+      mode: 'nearest' as const,
+      axis: 'x' as const,
+      intersect: false
     }
   };
 
   return (
-    <div className="card h-72 p-4">
-      <Line data={data} options={options} />
+    <div className="card p-3 sm:p-4 w-full overflow-hidden">
+      <div className="h-64 sm:h-72 md:h-80 w-full">
+        <Line data={data} options={options} />
+      </div>
     </div>
   );
 }

@@ -20,71 +20,116 @@ export async function generateWeatherTips(
 ): Promise<AITip[]> {
   if (!client) {
     logger.warn("Gemini client not initialized");
-    return [];
+    return getDefaultTips(context.location);
   }
 
   try {
-    const model = client.getGenerativeModel({ model: "gemini-2.5-flash" });
+    logger.info(`Gerando dicas para ${context.location} - Temp: ${context.temperature}°C, Umidade: ${context.humidity}%`);
 
-    const prompt = `You are a meteorological assistant specialized in providing practical tips based on weather conditions.
+    const model = client.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
-Current conditions:
-- Temperature: ${context.temperature} degrees Celsius
-- Humidity: ${context.humidity}%
-- Location: ${context.location}
-- Conditions: ${context.conditions}
+    const prompt = `Você é um assistente meteorológico local especializado em fornecer dicas práticas e personalizadas.
 
-Please generate 3-4 practical and contextualized tips about:
-1. What to wear (clothing, accessories)
-2. Recommended activities or activities to avoid
-3. Health care
-4. Tips to feel comfortable
+Condições climáticas atuais:
+- Temperatura: ${context.temperature}°C
+- Umidade: ${context.humidity}%
+- Localização: ${context.location}, Brasil
+- Condições: ${context.conditions}
 
-Respond ONLY with valid JSON (no markdown, no code blocks) in this exact format:
+IMPORTANTE: Você DEVE gerar exatamente 4 dicas personalizadas para ${context.location}. As dicas devem incluir:
+
+1. **Roupas e acessórios**: O que vestir baseado no clima atual
+2. **Atividades locais**: Sugira lugares específicos e famosos de ${context.location} que combinam com o clima (parques, museus, restaurantes, pontos turísticos)
+3. **Saúde e conforto**: Cuidados com saúde baseados na temperatura/umidade
+4. **Dica extra**: Algo útil e contextualizado para o clima e a cidade
+
+Para cada dica, sugira 2-3 ações práticas específicas.
+
+Responda APENAS com JSON válido (sem markdown, sem blocos de código) neste formato EXATO:
 {
   "tips": [
     {
-      "title": "Tip Title",
-      "description": "Detailed description",
-      "icon": "relevant emoji",
-      "priority": "low|medium|high",
-      "actions": ["action 1", "action 2"]
+      "title": "Título da Dica",
+      "description": "Descrição detalhada em português",
+      "icon": "emoji relevante",
+      "priority": "low" ou "medium" ou "high",
+      "actions": ["ação 1 específica", "ação 2 específica"]
     }
   ]
 }
 
-Be practical, concise and weather-based.`;
+Seja prático, detalhado e use nomes reais de lugares em ${context.location}.`;
 
     const result = await model.generateContent(prompt);
     const response = result.response;
     const text = response.text();
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/m);
+    logger.debug(`Resposta do Gemini (primeiros 200 chars): ${text.substring(0, 200)}`);
+
+    // Remove markdown code blocks if present
+    let cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/m);
     if (!jsonMatch) {
-      logger.warn("Failed to parse Gemini response");
-      return [];
+      logger.warn("Failed to parse Gemini response, using default tips");
+      logger.debug(`Texto recebido: ${cleanText.substring(0, 500)}`);
+      return getDefaultTips(context.location);
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
-    return parsed.tips || [];
+    const tips = parsed.tips || [];
+
+    logger.info(`Gemini retornou ${tips.length} dicas para ${context.location}`);
+
+    // Garantir que temos pelo menos 3 dicas
+    if (tips.length < 3) {
+      logger.warn(`Only ${tips.length} tips generated, adding defaults`);
+      return [...tips, ...getDefaultTips(context.location)].slice(0, 4);
+    }
+
+    return tips;
   } catch (error: any) {
     // Check if it's a rate limit error
     if (error?.status === 429) {
       logger.warn("Gemini API rate limit reached. Returning default tips.");
-      // Return some default tips when rate limited
-      return [
-        {
-          title: "Mantenha-se confortável",
-          description: "Ajuste suas roupas conforme a temperatura atual",
-          icon: "👕",
-          priority: "medium",
-          actions: ["Verifique a temperatura", "Use camadas de roupa"]
-        }
-      ];
+    } else {
+      logger.error(error, "Error generating weather tips from Gemini");
     }
-    logger.error(error, "Error generating weather tips from Gemini");
-    return [];
+    return getDefaultTips(context.location);
   }
+}
+
+function getDefaultTips(location: string): AITip[] {
+  return [
+    {
+      title: "Vista-se apropriadamente",
+      description: `Verifique a temperatura atual em ${location} e ajuste suas roupas`,
+      icon: "👕",
+      priority: "medium",
+      actions: ["Use camadas de roupa", "Leve um casaco se necessário", "Verifique a previsão"]
+    },
+    {
+      title: "Explore a cidade",
+      description: `Aproveite o dia para conhecer os pontos turísticos de ${location}`,
+      icon: "🗺️",
+      priority: "low",
+      actions: ["Visite parques locais", "Conheça a gastronomia", "Tire fotos"]
+    },
+    {
+      title: "Mantenha-se hidratado",
+      description: "Beba água regularmente durante o dia",
+      icon: "💧",
+      priority: "high",
+      actions: ["Leve uma garrafa de água", "Evite bebidas muito geladas", "Beba a cada hora"]
+    },
+    {
+      title: "Proteja-se do clima",
+      description: "Tome precauções baseadas nas condições climáticas",
+      icon: "☀️",
+      priority: "medium",
+      actions: ["Use protetor solar", "Leve guarda-chuva se necessário", "Evite exposição prolongada"]
+    }
+  ];
 }
 
 export async function generateAlertMessage(sensorId: string, value: number, threshold: number): Promise<string> {
@@ -93,7 +138,7 @@ export async function generateAlertMessage(sensorId: string, value: number, thre
   }
 
   try {
-    const model = client.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = client.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `You are an assistant that generates concise and useful alert messages.
 
@@ -126,7 +171,7 @@ export async function getGeminiTips(weatherData: { temperature: number; humidity
   }
 
   try {
-    const model = client.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = client.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `Você é um assistente meteorológico especializado em fornecer dicas práticas baseadas nas condições climáticas.
 

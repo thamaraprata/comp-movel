@@ -39,7 +39,9 @@ weatherRouter.get("/", async (req, res) => {
       return res.json({
         status: "success",
         data: {
-          ...weatherData,
+          city: finalCity,
+          countryCode: finalCountryCode,
+          data: weatherData,
           timestamp: Date.now(),
           tips: []
         }

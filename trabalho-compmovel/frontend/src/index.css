@@ -10,13 +10,24 @@ html,
 body,
 #root {
   height: 100%;
+  overflow-x: hidden;
 }
 
 body {
   @apply text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-900;
 }
 
+* {
+  min-width: 0;
+}
+
 .card {
   @apply rounded-xl border border-slate-200/60 dark:border-slate-800/70 bg-white dark:bg-slate-800 shadow-sm;
+}
+
+/* Garantir que canvas do Chart.js seja responsivo */
+canvas {
+  max-width: 100% !important;
+  height: auto !important;
 }
 

@@ -183,3 +183,42 @@ export function getTelegramUser(userId: number): TelegramUser | undefined {
 export function getAllTelegramUsers(): TelegramUser[] {
   return Array.from(telegramUsers.values());
 }
+
+export async function sendTelegramAlert(alert: any): Promise<void> {
+  if (!bot || telegramUsers.size === 0) {
+    return;
+  }
+
+  const message = `🚨 ALERT\n\nSensor: ${alert.sensorType}\nSeverity: ${alert.severity}\nMessage: ${alert.message}\nValue: ${alert.value}\nThreshold: ${alert.threshold}`;
+
+  for (const user of telegramUsers.values()) {
+    try {
+      await bot.telegram.sendMessage(user.id, message);
+    } catch (error) {
+      logger.error(`Failed to send alert to user ${user.id}`, error);
+    }
+  }
+}
+
+export async function sendTelegramMessage(message: string, chatId?: number): Promise<void> {
+  if (!bot) {
+    logger.warn("Telegram bot not initialized");
+    return;
+  }
+
+  if (chatId) {
+    try {
+      await bot.telegram.sendMessage(chatId, message, { parse_mode: "Markdown" });
+    } catch (error) {
+      logger.error(`Failed to send message to chat ${chatId}`, error);
+    }
+  } else {
+    for (const user of telegramUsers.values()) {
+      try {
+        await bot.telegram.sendMessage(user.id, message, { parse_mode: "Markdown" });
+      } catch (error) {
+        logger.error(`Failed to send message to user ${user.id}`, error);
+      }
+    }
+  }
+}
