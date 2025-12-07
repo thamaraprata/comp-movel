@@ -8,9 +8,16 @@ import { initSocketServer } from "./realtime/socket";
 import { initGemini } from "./integrations/gemini.js";
 import { initWeatherScheduler } from "./services/weatherScheduler";
 import { initTelegramBot } from "./integrations/telegram.js";
+import { testConnection } from "./database/postgres.js";
 
 async function bootstrap() {
   await migrate();
+
+  // Testar conexão PostgreSQL
+  const pgConnected = await testConnection();
+  if (!pgConnected) {
+    logger.warn("PostgreSQL não está disponível - histórico será apenas em memória");
+  }
 
   const app = createApp();
   const server = createServer(app);

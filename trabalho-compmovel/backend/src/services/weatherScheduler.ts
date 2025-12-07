@@ -1,8 +1,9 @@
 import cron from "node-cron";
-import { logger } from "../config/logger";
-import { getWeatherData, WeatherData } from "../integrations/openweather";
-import { getGeminiTips } from "../integrations/gemini";
-import { io } from "../realtime/socket";
+import { logger } from "../config/logger.js";
+import { getWeatherData, WeatherData } from "../integrations/openweather.js";
+import { getGeminiTips, generateWeatherTips } from "../integrations/gemini.js";
+import { io } from "../realtime/socket.js";
+import * as postgres from "../database/postgres.js";
 
 const DEFAULT_CITY = process.env.OPENWEATHER_CITY || "São Paulo";
 const DEFAULT_COUNTRY_CODE = process.env.OPENWEATHER_COUNTRY_CODE || "BR";
@@ -44,15 +45,45 @@ async function updateWeatherData(city: string = DEFAULT_CITY, countryCode: strin
       return;
     }
 
-    // Gerar dicas com Gemini
+    // **SALVAR NO POSTGRESQL**
+    const recordId = await postgres.insertWeatherRecord({
+      city,
+      country_code: countryCode,
+      temperature: weatherData.temperature,
+      feels_like: weatherData.feelsLike,
+      humidity: weatherData.humidity,
+      wind_speed: weatherData.windSpeed,
+      conditions: weatherData.conditions,
+      timestamp: new Date()
+    });
+
+    // Gerar dicas com Gemini (versão nova com IA estruturada)
     let tips: string[] = [];
     try {
-      const tipsText = await getGeminiTips(weatherData);
-      // Dividir dicas em array
-      tips = tipsText
-        .split("\n")
-        .filter((tip) => tip.trim().length > 0)
-        .slice(0, 3); // Pegar apenas as 3 primeiras dicas
+      const aiTips = await generateWeatherTips({
+        temperature: weatherData.temperature,
+        humidity: weatherData.humidity,
+        location: city,
+        conditions: weatherData.conditions
+      });
+
+      // Converter para formato de string (compatibilidade com código antigo)
+      tips = aiTips.map(tip => `${tip.icon} ${tip.title}: ${tip.description}`);
+
+      // **SALVAR DICAS NO POSTGRESQL**
+      if (recordId && aiTips.length > 0) {
+        await postgres.insertWeatherTips(
+          aiTips.map(tip => ({
+            weather_record_id: recordId,
+            city,
+            title: tip.title,
+            description: tip.description,
+            icon: tip.icon,
+            priority: tip.priority,
+            actions: tip.actions
+          }))
+        );
+      }
     } catch (error) {
       logger.error(error, "Erro ao gerar dicas com Gemini");
     }
@@ -65,7 +96,7 @@ async function updateWeatherData(city: string = DEFAULT_CITY, countryCode: strin
       tips
     };
 
-    // Adicionar ao histórico
+    // Adicionar ao histórico em memória (para compatibilidade)
     const key = getHistoryKey(city, countryCode);
     const history = weatherHistory.get(key) || [];
 
@@ -80,10 +111,11 @@ async function updateWeatherData(city: string = DEFAULT_CITY, countryCode: strin
     // Emitir evento via Socket.IO para atualizar frontend em tempo real
     io.emit("weather:updated", record);
 
-    logger.info("Dados de clima atualizados e emitidos", {
+    logger.info("Dados de clima atualizados e salvos no PostgreSQL", {
       city,
       temperature: weatherData.temperature,
-      tipsCount: tips.length
+      tipsCount: tips.length,
+      recordId
     });
   } catch (error) {
     logger.error(error, `Erro ao atualizar dados de clima para ${city}`);

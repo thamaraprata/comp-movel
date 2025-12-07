@@ -1,6 +1,29 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-weather
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: weather_db
+      POSTGRES_USER: weather_user
+      POSTGRES_PASSWORD: weather_pass_123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U weather_user -d weather_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Backend (já existente, apenas orquestrado)
   backend:
     build: ./backend
@@ -15,11 +38,19 @@ services:
       PORT: 3334
       CORS_ORIGIN: http://localhost:5173
       DATABASE_PATH: ./data/monitoring.db
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: weather_db
+      POSTGRES_USER: weather_user
+      POSTGRES_PASSWORD: weather_pass_123
     volumes:
       - ./backend:/app
       - /app/node_modules
     networks:
       - monitoring
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # Frontend (já existente, apenas orquestrado)
   frontend:
@@ -35,6 +66,10 @@ services:
       - monitoring
     depends_on:
       - backend
+
+volumes:
+  postgres_data:
+    driver: local
 
 networks:
   monitoring:

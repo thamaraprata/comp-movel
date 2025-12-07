@@ -4,6 +4,7 @@ import { generateWeatherTips } from "../../integrations/gemini";
 import { getWeatherHistory, getCurrentWeatherRecord, updateWeatherForCity } from "../../services/weatherScheduler";
 import { CITIES } from "../../config/cities";
 import { logger } from "../../config/logger";
+import * as postgres from "../../database/postgres.js";
 
 export const weatherRouter = Router();
 
@@ -221,6 +222,86 @@ weatherRouter.post("/refresh", async (req, res) => {
     res.status(500).json({
       status: "error",
       message: "Erro ao atualizar dados de clima"
+    });
+  }
+});
+
+// GET /api/weather/history-db - Obter histórico do PostgreSQL
+weatherRouter.get("/history-db", async (req, res) => {
+  try {
+    const { city, hours } = req.query;
+    const finalCity = (city as string) || process.env.OPENWEATHER_CITY || "São Paulo";
+    const finalHours = hours ? parseInt(hours as string) : 24;
+
+    const history = await postgres.getWeatherHistory(finalCity, finalHours);
+
+    res.json({
+      status: "success",
+      data: history,
+      count: history.length
+    });
+  } catch (error) {
+    logger.error(error, "Erro ao obter histórico do PostgreSQL");
+    res.status(500).json({
+      status: "error",
+      message: "Erro ao obter histórico do banco de dados"
+    });
+  }
+});
+
+// GET /api/weather/stats-db - Obter estatísticas do PostgreSQL
+weatherRouter.get("/stats-db", async (req, res) => {
+  try {
+    const { city, days } = req.query;
+    const finalCity = (city as string) || process.env.OPENWEATHER_CITY || "São Paulo";
+    const finalDays = days ? parseInt(days as string) : 1;
+
+    const stats = await postgres.getWeatherStats(finalCity, finalDays);
+
+    if (!stats || stats.record_count === 0) {
+      return res.status(404).json({
+        status: "not_found",
+        message: "Nenhum dado encontrado no banco de dados"
+      });
+    }
+
+    res.json({
+      status: "success",
+      data: stats
+    });
+  } catch (error) {
+    logger.error(error, "Erro ao obter estatísticas do PostgreSQL");
+    res.status(500).json({
+      status: "error",
+      message: "Erro ao obter estatísticas do banco de dados"
+    });
+  }
+});
+
+// GET /api/weather/latest-db - Obter último registro do PostgreSQL
+weatherRouter.get("/latest-db", async (req, res) => {
+  try {
+    const { city } = req.query;
+    const finalCity = (city as string) || process.env.OPENWEATHER_CITY || "São Paulo";
+
+    const record = await postgres.getLatestWeatherRecord(finalCity);
+
+    if (!record) {
+      return res.status(404).json({
+        status: "not_found",
+        message: "Nenhum dado encontrado no banco de dados"
+      });
+    }
+
+    res.json({
+      status: "success",
+      data: record
+    });
+  } catch (error) {
+    logger.error(error, "Erro ao obter último registro do PostgreSQL");
+    res.status(500).json({
+      status: "error",
+      message: "Erro ao obter dados do banco de dados"
     });
   }
 });
