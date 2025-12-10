@@ -12,6 +12,45 @@ const api = axios.create({
   timeout: 30_000 // Aumentado de 10s para 30s
 });
 
+// Request interceptor: Adicionar token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("accessToken");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Response interceptor: Refresh automático
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (refreshToken) {
+        try {
+          const { refreshAccessToken } = await import("./authApi");
+          const newAccessToken = await refreshAccessToken(refreshToken);
+          localStorage.setItem("accessToken", newAccessToken);
+
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return api(originalRequest);
+        } catch (refreshError) {
+          // Logout
+          localStorage.clear();
+          window.location.href = "/";
+        }
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
   const { data } = await api.get<DashboardSnapshot>("/dashboard");
   return data;

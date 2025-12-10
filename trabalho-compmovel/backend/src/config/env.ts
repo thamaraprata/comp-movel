@@ -14,7 +14,10 @@ const envSchema = z.object({
   DATABASE_PATH: z.string().default("./data/monitoring.db"),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
-  GEMINI_API_KEY: z.string().optional()
+  GEMINI_API_KEY: z.string().optional(),
+  JWT_SECRET: z.string().min(32),
+  JWT_EXPIRES_IN: z.string().default("15m"),
+  REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().default(7)
 });
 
 const env = envSchema.parse(process.env);

@@ -7,9 +7,13 @@ import { sensorsRouter } from "./modules/sensors";
 import { tipsRouter } from "./modules/tips";
 import { telegramRouter } from "./modules/telegram";
 import { weatherRouter } from "./modules/weather";
+import { authRouter } from "./modules/auth";
+import { chatRouter } from "./modules/chat";
 
 export const routes = Router();
 
+routes.use("/auth", authRouter);
+routes.use("/chat", chatRouter);
 routes.use("/dashboard", dashboardRouter);
 routes.use("/alerts", alertsRouter);
 routes.use("/thresholds", thresholdsRouter);

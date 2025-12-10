@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { login } from "../services/authApi";
 
 interface LoginProps {
   onLogin: (user: { email: string; name: string }) => void;
+  onRegister?: () => void;
 }
 
-export function Login({ onLogin }: LoginProps) {
+export function Login({ onLogin, onRegister }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -16,14 +18,12 @@ export function Login({ onLogin }: LoginProps) {
     setLoading(true);
 
     try {
-      // Mock login: em produção, substituir por chamada à API
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      if (!email.includes("@")) {
-        throw new Error("E-mail inválido");
-      }
-      onLogin({ email, name: email.split("@")[0] });
-    } catch (_error) {
-      setError("Credenciais inválidas. Utilize um e-mail válido.");
+      const response = await login(email, password);
+      localStorage.setItem("accessToken", response.accessToken);
+      localStorage.setItem("refreshToken", response.refreshToken);
+      onLogin(response.user);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Erro ao fazer login");
     } finally {
       setLoading(false);
     }
@@ -74,6 +74,19 @@ export function Login({ onLogin }: LoginProps) {
           </button>
           {error && <p className="text-center text-sm text-rose-500">{error}</p>}
         </form>
+        {onRegister && (
+          <div className="mt-6 text-center">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Não tem uma conta?{" "}
+              <button
+                onClick={onRegister}
+                className="font-semibold text-primary-600 hover:text-primary-500 hover:underline"
+              >
+                Registre-se
+              </button>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

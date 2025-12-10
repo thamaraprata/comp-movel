@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { Dashboard } from "./pages/Dashboard";
 import { Login } from "./pages/Login";
+import { Register } from "./pages/Register";
 
 interface User {
   name: string;
@@ -15,6 +16,7 @@ export default function App() {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? (JSON.parse(stored) as User) : null;
   });
+  const [view, setView] = useState<"login" | "register">("login");
 
   const isAuthenticated = useMemo(() => Boolean(user), [user]);
 
@@ -26,10 +28,25 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
   };
 
   if (!isAuthenticated || !user) {
-    return <Login onLogin={handleLogin} />;
+    if (view === "register") {
+      return (
+        <Register
+          onRegister={handleLogin}
+          onBackToLogin={() => setView("login")}
+        />
+      );
+    }
+    return (
+      <Login
+        onLogin={handleLogin}
+        onRegister={() => setView("register")}
+      />
+    );
   }
 
   return <Dashboard userName={user.name} onLogout={handleLogout} />;
