@@ -123,11 +123,11 @@ DECLARE
     base_humidity INTEGER;
     temp_variation DECIMAL;
     humidity_variation INTEGER;
-    current_timestamp TIMESTAMP;
+    record_timestamp TIMESTAMP;
 BEGIN
     -- Gerar dados para os últimos 30 dias (a cada hora)
     FOR i IN 0..(30 * 24) LOOP
-        current_timestamp := NOW() - (i || ' hours')::INTERVAL;
+        record_timestamp := NOW() - (i || ' hours')::INTERVAL;
 
         -- Variação senoidal para simular ciclo dia/noite
         base_temp := 22 + 8 * SIN((i % 24) * PI() / 12);
@@ -159,14 +159,14 @@ BEGIN
                 WHEN RANDOM() < 0.8 THEN 'nublado'
                 ELSE 'chuva leve'
             END,
-            current_timestamp,
-            current_timestamp
+            record_timestamp,
+            record_timestamp
         );
     END LOOP;
 
     -- Gerar dados para Goiânia (últimos 15 dias)
     FOR i IN 0..(15 * 24) LOOP
-        current_timestamp := NOW() - (i || ' hours')::INTERVAL;
+        record_timestamp := NOW() - (i || ' hours')::INTERVAL;
 
         base_temp := 25 + 7 * SIN((i % 24) * PI() / 12);
         temp_variation := (RANDOM() - 0.5) * 4;
@@ -196,14 +196,14 @@ BEGIN
                 WHEN RANDOM() < 0.8 THEN 'parcialmente nublado'
                 ELSE 'nublado'
             END,
-            current_timestamp,
-            current_timestamp
+            record_timestamp,
+            record_timestamp
         );
     END LOOP;
 
     -- Gerar dados para Rio de Janeiro (últimos 7 dias)
     FOR i IN 0..(7 * 24) LOOP
-        current_timestamp := NOW() - (i || ' hours')::INTERVAL;
+        record_timestamp := NOW() - (i || ' hours')::INTERVAL;
 
         base_temp := 26 + 6 * SIN((i % 24) * PI() / 12);
         temp_variation := (RANDOM() - 0.5) * 3;
@@ -234,8 +234,8 @@ BEGIN
                 WHEN RANDOM() < 0.9 THEN 'nublado'
                 ELSE 'chuva'
             END,
-            current_timestamp,
-            current_timestamp
+            record_timestamp,
+            record_timestamp
         );
     END LOOP;
 END$$;
