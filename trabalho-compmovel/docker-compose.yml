@@ -24,25 +24,34 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend (já existente, apenas orquestrado)
+  # Backend
   backend:
     build: ./backend
     container_name: backend
     working_dir: /app
     ports:
       - "3334:3334"
-    env_file:
-      - ./backend/.env
     environment:
       NODE_ENV: development
       PORT: 3334
       CORS_ORIGIN: http://localhost:5173
       DATABASE_PATH: ./data/monitoring.db
+      # PostgreSQL
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: weather_db
       POSTGRES_USER: weather_user
       POSTGRES_PASSWORD: weather_pass_123
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-seu_secret_super_seguro_aqui_minimo_32_caracteres_longa_string_aleatoria}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      REFRESH_TOKEN_EXPIRES_DAYS: ${REFRESH_TOKEN_EXPIRES_DAYS:-7}
+      # APIs externas
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY}
+      OPENWEATHER_CITY: ${OPENWEATHER_CITY:-São Paulo}
+      OPENWEATHER_COUNTRY_CODE: ${OPENWEATHER_COUNTRY_CODE:-BR}
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -52,13 +61,17 @@ services:
       postgres:
         condition: service_healthy
 
-  # Frontend (já existente, apenas orquestrado)
+  # Frontend
   frontend:
     build: ./frontend
     container_name: frontend
     working_dir: /app
     ports:
       - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:3334/api
+      VITE_API_PROXY: http://backend:3334
+      VITE_WS_PROXY: http://backend:3334
     volumes:
       - ./frontend:/app
       - /app/node_modules

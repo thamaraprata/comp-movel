@@ -11,5 +11,8 @@ RUN npm install --legacy-peer-deps
 # Copiar código
 COPY . .
 
-# Executar em dev mode
-CMD ["npm", "run", "dev"]
+# Expor porta
+EXPOSE 5173
+
+# Executar em dev mode com host 0.0.0.0 para aceitar conexões externas
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

@@ -5,11 +5,14 @@ WORKDIR /app
 # Copiar package files
 COPY package*.json ./
 
-# Instalar dependências
+# Instalar todas as dependências (incluindo devDependencies para tsx)
 RUN npm install --legacy-peer-deps
 
 # Copiar código
 COPY . .
 
-# Executar em dev mode
+# Expor porta
+EXPOSE 3334
+
+# Executar com tsx (desenvolvimento)
 CMD ["npm", "run", "dev"]
