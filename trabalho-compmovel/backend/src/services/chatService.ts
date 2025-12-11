@@ -2,6 +2,7 @@ import * as conversationService from "./conversationService.js";
 import * as geminiChat from "../integrations/geminiChat.js";
 import { getWeatherData } from "../integrations/openweather.js";
 import { logger } from "../config/logger.js";
+import { broadcastChatMessage } from "../realtime/socket.js";
 
 export async function processMessage(
   userId: number,
@@ -21,6 +22,14 @@ export async function processMessage(
       userMessage,
       platform
     );
+
+    // Emitir evento Socket.IO
+    broadcastChatMessage(userId, {
+      role: "user",
+      content: userMessage,
+      conversationId,
+      timestamp: new Date().toISOString()
+    });
 
     // 3. Buscar contexto
     const messages = await conversationService.getConversationMessages(conversationId, 30);
@@ -52,6 +61,14 @@ export async function processMessage(
       platform,
       weatherData
     );
+
+    // Emitir evento Socket.IO
+    broadcastChatMessage(userId, {
+      role: "assistant",
+      content: aiResponse,
+      conversationId,
+      timestamp: new Date().toISOString()
+    });
 
     // 7. Verificar se precisa gerar resumo (em background)
     if (await conversationService.shouldGenerateSummary(conversationId)) {

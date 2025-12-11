@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 
 import { useRealtime } from "../hooks/useRealtime";
 import { useDashboardStore } from "../stores/dashboardStore";
+import { useChatStore } from "../stores/chatStore";
 import { acknowledgeAlert, fetchDashboardSnapshot, updateThreshold } from "../services/api";
 import { AlertList } from "../components/AlertList";
 import { DashboardLayout } from "../components/DashboardLayout";
 import { RealtimeChart } from "../components/RealtimeChart";
 import { ThresholdForm } from "../components/ThresholdForm";
 import { WeatherCard } from "../components/WeatherCard";
+import { ChatInterface } from "../components/ChatInterface";
+import { TelegramLink } from "../components/TelegramLink";
 import { generateWeatherTips } from "../services/api";
 import type { AITip } from "../types";
 import { Lightbulb } from "lucide-react";
@@ -40,6 +43,8 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
   const [weatherData, setWeatherData] = useState<any>(null);
   const [selectedCity, setSelectedCity] = useState<string>("São Paulo");
   const [loadingTips, setLoadingTips] = useState(false);
+
+  const { setSelectedCity: setChatCity } = useChatStore();
 
   useRealtime();
 
@@ -106,6 +111,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
   const handleCityChange = (city: string) => {
     console.log(`[Dashboard] Cidade mudou para: ${city}`);
     setSelectedCity(city);
+    setChatCity(city);
   };
 
   // Carregar dicas quando a cidade mudar
@@ -255,6 +261,16 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
           </span>
         </div>
         <AlertList alerts={alerts.slice(0, 10)} onAcknowledge={handleAcknowledge} />
+      </section>
+
+      {/* Chat e Vinculação Telegram */}
+      <section className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-3">
+        <div className="lg:col-span-2 h-[600px]">
+          <ChatInterface />
+        </div>
+        <div className="h-fit">
+          <TelegramLink />
+        </div>
       </section>
     </DashboardLayout>
   );

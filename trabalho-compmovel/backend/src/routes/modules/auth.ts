@@ -136,3 +136,52 @@ authRouter.get("/me", authMiddleware, async (req: AuthRequest, res) => {
 
   res.json({ status: "success", data: { user: result.rows[0] } });
 });
+
+// POST /api/auth/generate-telegram-code
+authRouter.post("/generate-telegram-code", authMiddleware, async (req: AuthRequest, res) => {
+  const userId = req.user!.userId;
+
+  // Gerar código de 6 dígitos
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
+
+  await pool.query(
+    "UPDATE users SET verification_code = $1, verification_expires_at = $2 WHERE id = $3",
+    [code, expiresAt, userId]
+  );
+
+  res.json({ status: "success", data: { code, expiresAt } });
+});
+
+// POST /api/auth/verify-telegram-code (usado pelo bot)
+authRouter.post("/verify-telegram-code", async (req, res) => {
+  const { code, telegramChatId } = req.body;
+
+  if (!code || !telegramChatId) {
+    return res.status(400).json({ status: "error", message: "Código e chat_id obrigatórios" });
+  }
+
+  const result = await pool.query(
+    `SELECT id, name, email FROM users
+     WHERE verification_code = $1
+     AND verification_expires_at > NOW()`,
+    [code]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ status: "error", message: "Código inválido ou expirado" });
+  }
+
+  const user = result.rows[0];
+
+  // Vincular Telegram
+  await pool.query(
+    "UPDATE users SET telegram_chat_id = $1, verification_code = NULL WHERE id = $2",
+    [telegramChatId, user.id]
+  );
+
+  res.json({
+    status: "success",
+    data: { user: { id: user.id, name: user.name, email: user.email } }
+  });
+});

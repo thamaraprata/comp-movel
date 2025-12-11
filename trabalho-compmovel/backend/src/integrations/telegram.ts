@@ -1,9 +1,12 @@
 import { Telegraf, Context } from "telegraf";
+import axios from "axios";
 import { logger } from "../config/logger.js";
 import { generateWeatherTips } from "./gemini.js";
 import { getCurrentWeatherRecord, getWeatherHistory } from "../services/weatherScheduler.js";
 import { getWeatherData } from "./openweather.js";
 import { CITIES } from "../config/cities.js";
+import * as chatService from "../services/chatService.js";
+import { pool } from "../database/postgres.js";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const DEFAULT_CITY = process.env.OPENWEATHER_CITY || "São Paulo";
@@ -69,6 +72,51 @@ export async function initTelegramBot(): Promise<void> {
       `Use /cidade para escolher sua cidade!`;
 
     await ctx.reply(welcomeMsg, { parse_mode: "Markdown" });
+  });
+
+  bot.command("vincular", async (ctx: Context) => {
+    const chatId = ctx.chat?.id;
+    const args = ctx.message?.text?.split(" ");
+    const code = args?.[1];
+
+    if (!code) {
+      await ctx.reply(
+        "❌ *Uso incorreto!*\n\n" +
+        "Para vincular sua conta, use:\n" +
+        "`/vincular SEU_CODIGO`\n\n" +
+        "Exemplo: `/vincular 123456`\n\n" +
+        "Gere seu código no aplicativo web!",
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (!/^\d{6}$/.test(code)) {
+      await ctx.reply("❌ Código inválido! O código deve ter 6 dígitos.");
+      return;
+    }
+
+    try {
+      await ctx.reply("🔄 Verificando código...");
+
+      const response = await axios.post("http://localhost:3334/api/auth/verify-telegram-code", {
+        code,
+        telegramChatId: chatId
+      });
+
+      const { user } = response.data.data;
+
+      await ctx.reply(
+        `✅ *Conta vinculada com sucesso!*\n\n` +
+        `👤 Nome: ${user.name}\n` +
+        `📧 Email: ${user.email}\n\n` +
+        `Agora você pode usar o chat aqui e na web! 🎉`,
+        { parse_mode: "Markdown" }
+      );
+    } catch (error: any) {
+      logger.error(error, "Erro ao vincular Telegram");
+      await ctx.reply("❌ Código inválido ou expirado. Gere um novo código no aplicativo web.");
+    }
   });
 
   bot.command("clima", async (ctx: Context) => {
@@ -347,11 +395,43 @@ export async function initTelegramBot(): Promise<void> {
     );
   });
 
-  bot.on("message", async (ctx: Context) => {
-    await ctx.reply(
-      "❓ Não entendi esse comando.\n\n" +
-      "Use /ajuda para ver todos os comandos disponíveis!"
-    );
+  bot.on("text", async (ctx: Context) => {
+    const chatId = ctx.chat?.id;
+    const text = ctx.message?.text;
+
+    if (!chatId || !text || text.startsWith("/")) {
+      return; // Ignorar comandos
+    }
+
+    try {
+      // Buscar usuário vinculado
+      const userResult = await pool.query(
+        "SELECT id FROM users WHERE telegram_chat_id = $1",
+        [chatId]
+      );
+
+      if (userResult.rows.length === 0) {
+        await ctx.reply(
+          "❌ Conta não vinculada!\n\n" +
+          "Use /vincular para vincular sua conta do aplicativo web."
+        );
+        return;
+      }
+
+      const userId = userResult.rows[0].id;
+
+      // Enviar "digitando..."
+      await ctx.sendChatAction("typing");
+
+      // Processar mensagem através do chatService
+      const result = await chatService.processMessage(userId, text, undefined, "telegram");
+
+      // Enviar resposta
+      await ctx.reply(result.aiResponse);
+    } catch (error) {
+      logger.error(error, "Erro ao processar mensagem do Telegram");
+      await ctx.reply("❌ Desculpe, tive um erro ao processar sua mensagem.");
+    }
   });
 
   bot.launch();

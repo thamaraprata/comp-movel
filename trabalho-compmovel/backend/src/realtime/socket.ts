@@ -48,3 +48,13 @@ export function broadcastAlert(alert: unknown) {
   io.emit(SOCKET_EVENTS.ALERT_NEW, alert);
 }
 
+export function broadcastChatMessage(userId: number, message: {
+  role: "user" | "assistant";
+  content: string;
+  conversationId: number;
+  timestamp: string;
+}) {
+  if (!io) return;
+  io.emit("chat:message", { userId, ...message });
+}
+
