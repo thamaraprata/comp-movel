@@ -1,20 +1,20 @@
-# Backend – API, MQTT e Processamento
+# Backend – API e Processamento
 
-Servidor Node.js + Express responsável por receber leituras de sensores via MQTT, persistir no SQLite, emitir alertas e disponibilizar dados via API REST e WebSocket.
+Servidor Node.js + Express responsável por gerenciar dados climáticos, persistir no PostgreSQL, emitir alertas e disponibilizar dados via API REST e WebSocket.
 
 ## Requisitos
 
 - Node.js >= 20
-- Banco SQLite (arquivo local)
-- Broker MQTT (Mosquitto, HiveMQ, EMQX, etc.)
+- PostgreSQL (banco de dados relacional)
+- Docker (opcional, para ambiente completo)
 
 ## Setup
 
 ```bash
 cp env.example .env
-pnpm install
-pnpm run migrate   # cria tabelas
-pnpm run dev       # inicia API + MQTT + WebSocket
+npm install
+npm run migrate   # cria tabelas
+npm run dev       # inicia API + WebSocket
 ```
 
 ## Variáveis de ambiente
@@ -23,37 +23,35 @@ pnpm run dev       # inicia API + MQTT + WebSocket
 | --------------------- | ------------------------------------------- | ------------------------ |
 | `PORT`                | Porta HTTP da API                           | `3333`                   |
 | `CORS_ORIGIN`         | Origem permitida para o frontend            | `http://localhost:5173`  |
-| `MQTT_URL`            | URL do broker MQTT                          | `mqtt://localhost:1883`  |
-| `MQTT_SENSOR_TOPIC`   | Tópico wildcard das leituras                | `sensors/+/data`         |
 | `DATABASE_PATH`       | Caminho do arquivo SQLite                   | `./data/monitoring.db`   |
-| `TELEGRAM_BOT_TOKEN`  | Token do bot (integração futura)            | -                        |
-| `TELEGRAM_CHAT_ID`    | Chat ID para notificações (integração futura) | -                      |
+| `TELEGRAM_BOT_TOKEN`  | Token do bot do Telegram                    | -                        |
+| `TELEGRAM_CHAT_ID`    | Chat ID para notificações                   | -                        |
 | `GEMINI_API_KEY`      | API key do Google Gemini para dicas IA      | -                        |
+| `OPENWEATHER_API_KEY` | API key do OpenWeather                      | -                        |
 
 ## Scripts
 
-- `pnpm run dev` – modo desenvolvimento (hot reload com `tsx watch`)
-- `pnpm run build` – build para produção (`dist/`)
-- `pnpm run start` – rodar build em produção
-- `pnpm run migrate` – executa migrations SQL
-- `pnpm run seed` – insere dados de sensores de exemplo
-- `pnpm run simulate:sensors` – simula dados de sensores em tempo real via MQTT
-- `pnpm run test` – testes unitários (Vitest)
+- `npm run dev` – modo desenvolvimento (hot reload com `tsx watch`)
+- `npm run build` – build para produção (`dist/`)
+- `npm run start` – rodar build em produção
+- `npm run migrate` – executa migrations SQL
+- `npm run seed` – insere dados de sensores de exemplo
+- `npm run test` – testes unitários (Vitest)
 
 ## Estrutura
 
 - `src/config` – carregamento de variáveis, constantes, logger
-- `src/database` – conexão SQLite, migrations e seed
-- `src/mqtt` – cliente MQTT, parser de mensagens
-- `src/services` – regras de negócio (alertas, thresholds, sensores)
-- `src/routes` – rotas Express (dashboard, sensores, alertas, dicas de IA)
+- `src/database` – conexão PostgreSQL, migrations e seed
+- `src/services` – regras de negócio (alertas, thresholds, sensores, clima)
+- `src/routes` – rotas Express (dashboard, sensores, alertas, clima, chat)
 - `src/realtime` – Socket.IO (eventos em tempo real)
-- `src/integrations` – integrações externas (Telegram, Google Gemini)
+- `src/integrations` – integrações externas (Telegram, Google Gemini, OpenWeather)
 - `src/types` – interfaces TypeScript compartilhadas
 
 ## Deploy
 
-- Railway (Node 20, build + start)
-- Montar volume/persistência para `data/`
-- Configurar variáveis e URL do broker MQTT hospedado (EMQX Cloud, etc.)
+- Railway/Render (Node 20, build + start)
+- PostgreSQL gerenciado (Railway/Supabase)
+- Configurar variáveis de ambiente
+- Executar migrations no deploy
 

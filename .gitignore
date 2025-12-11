@@ -1,6 +1,7 @@
 # Dependencies
 trabalho-compmovel/backend/node_modules/
 trabalho-compmovel/frontend/node_modules/
+trabalho-compmovel/node_modules/
 
 # Environment variables
 trabalho-compmovel/backend/.env
@@ -12,6 +13,8 @@ trabalho-compmovel/frontend/.env.local
 trabalho-compmovel/backend/dist/
 trabalho-compmovel/frontend/dist/
 trabalho-compmovel/frontend/.vite/
+trabalho-compmovel/frontend/dev-dist/
+*.tsbuildinfo
 
 # Database
 trabalho-compmovel/backend/data/

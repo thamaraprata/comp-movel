@@ -22,7 +22,7 @@ export async function generateChatResponse(context: ChatContext): Promise<string
     return "Serviço de chat temporariamente indisponível.";
   }
 
-  const model = client.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+  const model = client.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const prompt = buildPrompt(context);
 
@@ -78,7 +78,7 @@ export async function generateConversationSummary(
     return "Resumo indisponível";
   }
 
-  const model = client.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+  const model = client.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const prompt = `Resuma esta conversa em um parágrafo conciso (máximo 200 palavras):
 

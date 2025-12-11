@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { MapPin, Cloud, BarChart3 } from "lucide-react";
+import { MapPin, Cloud } from "lucide-react";
 import { getCities, getWeatherData, getWeatherDescription, type WeatherData, type City } from "../services/weatherApi";
 import { generateWeatherTips } from "../services/api";
-import { WeatherHistoryChart } from "./WeatherHistoryChart";
 import type { AITip } from "../types";
 
 interface CityWeatherSelectorProps {
@@ -17,7 +16,6 @@ export function CityWeatherSelector({ onCityChange }: CityWeatherSelectorProps) 
   const [tips, setTips] = useState<AITip[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
 
   // Carregar lista de cidades ao montar
   useEffect(() => {
@@ -197,23 +195,9 @@ export function CityWeatherSelector({ onCityChange }: CityWeatherSelectorProps) 
         </div>
       )}
 
-      {/* Botão para mostrar/esconder histórico */}
-      <div className="flex justify-center">
-        <button
-          onClick={() => setShowHistory(!showHistory)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          <BarChart3 className="w-4 h-4" />
-          {showHistory ? "Ocultar Histórico" : "Ver Histórico"}
-        </button>
-      </div>
-
-      {/* Histórico de clima */}
-      {showHistory && <WeatherHistoryChart city={selectedCity} range="-7d" />}
-
       {/* Nota sobre atualização */}
       <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
-        ⏱️ Dados coletados a cada minuto via Node-RED + InfluxDB
+        ⏱️ Dados atualizados a cada 5 minutos via OpenWeather API
       </p>
     </div>
   );
