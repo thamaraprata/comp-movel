@@ -43,6 +43,7 @@ docker exec -it backend sh
 
 # Executar migração
 npm run migrate
+exit
 
 # Executar SQL diretamente no PostgreSQL
 docker exec -i postgres-weather psql -U weather_user -d weather_db < backend/database/migrations/001_create_auth_tables.sql

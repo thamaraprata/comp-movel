@@ -26,7 +26,7 @@ export async function generateWeatherTips(
   try {
     logger.info(`Gerando dicas para ${context.location} - Temp: ${context.temperature}°C, Umidade: ${context.humidity}%`);
 
-    const model = client.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = client.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `Você é um assistente meteorológico local especializado em fornecer dicas práticas e personalizadas.
 
@@ -138,7 +138,7 @@ export async function generateAlertMessage(sensorId: string, value: number, thre
   }
 
   try {
-    const model = client.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = client.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `You are an assistant that generates concise and useful alert messages.
 
@@ -171,7 +171,7 @@ export async function getGeminiTips(weatherData: { temperature: number; humidity
   }
 
   try {
-    const model = client.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = client.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `Você é um assistente meteorológico especializado em fornecer dicas práticas baseadas nas condições climáticas.
 
