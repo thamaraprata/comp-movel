@@ -25,13 +25,7 @@ cp .env.example .env
 docker-compose up -d
 ```
 
-### 3. Acessar a aplicação
-
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:3334
-- **PostgreSQL**: localhost:5432
-
-### 4. Executar migrações do banco
+### 3. Executar migrações do banco
 
 ```bash
 # Entrar no container do backend
@@ -43,6 +37,23 @@ npm run migrate
 # Ou executar SQL diretamente no PostgreSQL
 docker exec -i postgres-weather psql -U weather_user -d weather_db < backend/database/migrations/001_create_auth_tables.sql
 ```
+
+### 4. Executar seed (popular dados iniciais)
+
+```bash
+# Criar dados de exemplo para sensores, limites e histórico
+docker exec backend npm run seed
+```
+
+**IMPORTANTE**: Este comando cria:
+- 4 sensores de exemplo (temperatura, umidade, qualidade do ar, luminosidade)
+- Limites de alerta configurados
+- 30 leituras históricas para cada sensor
+
+### 5. Acessar a aplicação
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:3334
 
 ## 📦 Serviços Incluídos
 
@@ -246,9 +257,10 @@ docker system prune -a
 - [ ] Executar `docker-compose up -d`
 - [ ] Aguardar containers iniciarem (30-60s)
 - [ ] Executar migrações do banco
+- [ ] Executar seed: `docker exec backend npm run seed`
 - [ ] Acessar http://localhost:5173
 - [ ] Criar conta de usuário
-- [ ] Testar chat
+- [ ] Testar chat e dashboard
 - [ ] Vincular Telegram (opcional)
 
 ## 🎉 Pronto!
