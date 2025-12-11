@@ -43,7 +43,7 @@ graph TD
 
 ## Fluxos Principais
 
-### 1. Ingestão de Dados
+### 1. Injeção de Dados
 
 1. Sensor publica em `sensors/{sensorId}/data`.
 2. Backend recebe pelo cliente MQTT.
@@ -88,5 +88,6 @@ Migrations gerenciadas via `knex` (ou `drizzle-kit`) com scripts NPM.
 - [ ] Configurar scaffolds de backend (`backend/`).
 - [ ] Implementar pipeline de alertas e canal Telegram opcional.
 - [ ] Adicionar testes e monitoramento (Playwright + Vitest / Jest).
+
 
 
